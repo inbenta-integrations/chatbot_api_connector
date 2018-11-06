@@ -74,18 +74,18 @@ class ChatbotConnector
 		// If there is a active chat, send messages to the agent
 		if ($this->chatOnGoing()) {
 			$this->sendMessagesToChat($digestedRequest);
-			return;
+			die();
 		}
 		// If user answered to an ask-to-escalate question, handle it
 		if ($this->session->get('askingForEscalation', false)) {
 			$this->handleEscalation($digestedRequest);
-			return;
+			die();
 		}
 		// If the user clicked in a Federated Bot option, handle its request
 		if (count($digestedRequest) && isset($digestedRequest[0]['extendedContentAnswer'])) {
 			$answer = json_decode(json_encode($digestedRequest[0]['extendedContentAnswer']));
 			$this->displayFederatedBotAnswer($answer);
-			return;
+			die();
 		}
 	}
 
