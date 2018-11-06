@@ -12,12 +12,13 @@ class ChatbotAPIClient extends APIClient
     const CACHED_EXTRA_INFO_TTL = 1800; // Time in seconds where "/app/data" cached-data is valid
     const SESSION_TOKEN_TTL = 1440;     // Time in seconds where the session will be alive without user interaction
 
-    function __construct($key, $secret, $session)
+    function __construct($key, $secret, $session, $conversationConfiguration)
     {
         parent::__construct($key, $secret);
         $this->url = $this->methods->chatbot;
         $this->session = $session;
         $this->appDataCacheFile = $this->cachePath . "cached-appdata-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
+        $this->conversationConf = $conversationConfiguration;
     }
 
     public function setSessionToken($sessionToken)
@@ -30,12 +31,6 @@ class ChatbotAPIClient extends APIClient
         // Update access token if needed
         $this->updateAccessToken();
 
-        // Store start conversation configuration
-        $this->session->set('startConversationConf', array(
-            "configuration" => $conf,
-            "userType" => $userType,
-            "environment" => $environment
-        ));
         // Prepare configuration array
         $string = json_encode($conf, true);
         $params = array("payload" => $string);
@@ -178,8 +173,7 @@ class ChatbotAPIClient extends APIClient
         $this->sessionToken = $this->session->get('sessionToken.token');
         $this->sessionTokenExpiration = $this->session->get('sessionToken.expiration');
         if (is_null($this->sessionToken) || is_null($this->sessionTokenExpiration) || $this->sessionTokenExpiration < time()) {
-            $conversationConf = $this->session->get('startConversationConf');
-            $this->startConversation($conversationConf['configuration'], $conversationConf['userType'], $conversationConf['environment']);
+            $this->startConversation($this->conversationConf['configuration'], $this->conversationConf['userType'], $this->conversationConf['environment']);
         }
     }
 }
