@@ -25,6 +25,9 @@ class ChatbotConnector
 
 	function __construct($appPath)
 	{
+		// Return 200 OK response
+		$this->returnOkResponse();
+
 		// Create base components
 		$this->conf 		= (new ConfigurationLoader($appPath))->getConf();
 		$this->lang 		= new LanguageManager( $this->conf->get('conversation.default.lang'), $appPath );
@@ -522,5 +525,18 @@ class ChatbotConnector
 			];
 			$this->sendEventToBot($clickData);
 		}
+	}
+
+	/**
+	 *	Return a 200 OK response before continuing with the script execution
+	 */
+	protected function returnOkResponse()
+	{
+	    ob_start();
+	    header('Connection: close');
+	    header('Content-Length: '.ob_get_length());
+	    ob_end_flush();
+	    ob_flush();
+	    flush();
 	}
 }
