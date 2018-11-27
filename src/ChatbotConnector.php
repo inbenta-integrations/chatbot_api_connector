@@ -282,7 +282,12 @@ class ChatbotConnector
 		try {
 			// Send message to bot
 			if (isset($message['message'])) {
-				return $this->botClient->sendMessage($message);
+				$this->externalClient->showBotTyping();
+				$botResponse = $this->botClient->sendMessage($message);
+				if (isset($botResponse->message) && $botResponse->message == "Endpoint request timed out") {
+					$botResponse = $this->buildTextMessage($this->lang->translate('api-timeout'));
+				}
+				return $botResponse;
 
 			// Send event track to bot
 			} elseif (isset($message['type'])) {
