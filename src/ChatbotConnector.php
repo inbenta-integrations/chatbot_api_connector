@@ -25,9 +25,6 @@ class ChatbotConnector
 
 	function __construct($appPath)
 	{
-		// Return 200 OK response
-		$this->returnOkResponse();
-
 		// Create base components
 		$this->conf 		= (new ConfigurationLoader($appPath))->getConf();
 		$this->lang 		= new LanguageManager( $this->conf->get('conversation.default.lang'), $appPath );
@@ -55,6 +52,8 @@ class ChatbotConnector
 	public function handleRequest()
 	{
 		try {
+			// Return 200 OK response
+			$this->returnOkResponse();
 			// Store request
 			$request = file_get_contents('php://input');
 			// Translate the request into a ChatbotAPI request
