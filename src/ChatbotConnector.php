@@ -81,7 +81,6 @@ class ChatbotConnector
 		// If user answered to an ask-to-escalate question, handle it
 		if ($this->session->get('askingForEscalation', false)) {
 			$this->handleEscalation($digestedRequest);
-			die();
 		}
 		// If the user clicked in a Federated Bot option, handle its request
 		if (count($digestedRequest) && isset($digestedRequest[0]['extendedContentAnswer'])) {
@@ -117,7 +116,9 @@ class ChatbotConnector
 		}
 		if ($needEscalation) {
 			$this->handleEscalation();
-		} elseif ($needContentRating) {
+		}
+		// Display content rating if needed and not in chat nor asking to escalate
+		if ($needContentRating && !$this->chatOnGoing() && !$this->session->get('askingForEscalation', false)) {
 			$this->displayContentRatings($needContentRating);
 		}
 	}
@@ -194,6 +195,19 @@ class ChatbotConnector
 		$this->session->set('noResultsCount', $count);
 	}
 
+	/**
+	 *  Reduce the escalation counter that triggered the current escalation try
+	 */
+	protected function reduceCurrentEscalationCounter()
+	{
+        $escalationType = $this->session->get('escalationType');
+        if ($escalationType == static::ESCALATION_NO_RESULTS) {
+            $this->session->set('noResultsCount', $this->session->get('noResultsCount') - 1);
+        } elseif ($escalationType == static::ESCALATION_NEGATIVE_RATING) {
+            $this->session->set('negativeRatingCount', $this->session->get('negativeRatingCount') - 1);
+        }
+	}
+
     /**
      * 	Ask the user if wants to talk with a human and handle the answer
      */
@@ -211,6 +225,8 @@ class ChatbotConnector
 				if ($this->session->get('escalationType') == static::ESCALATION_API_FLAG) {
 					$this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
 				}
+				// Because no agents available, reduce the current escalation counter to escalate on next counter update
+				$this->reduceCurrentEscalationCounter();
 			}
 		} else {
 			// Handle user response to an escalation question
@@ -219,10 +235,13 @@ class ChatbotConnector
 			$this->session->set('noResultsCount', 0);
 			$this->session->set('negativeRatingCount', 0);
 
-			if (count($userAnswer) && isset($userAnswer[0]['escalateOption']) && $userAnswer[0]['escalateOption']) {
-				$this->escalateToAgent();
-			} else {
-				$this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('escalation-rejected')));
+			if (count($userAnswer) && isset($userAnswer[0]['escalateOption'])) {
+			    if ($userAnswer[0]['escalateOption']) {
+			        $this->escalateToAgent();
+			    } else {
+			        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('escalation-rejected')));
+			    }
+			    die();
 			}
 		}
 	}
@@ -401,8 +420,6 @@ class ChatbotConnector
 
 			if ($isAnswer && $hasRatingCode && !$hasEscalationFlag && !$hasNoRatingsFlag) {
 				$rateCode = $msg->parameters->contents->trackingCode->rateCode;
-			} else {
-				return false;
 			}
 		}
 		return $rateCode;
