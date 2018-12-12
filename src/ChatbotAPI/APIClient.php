@@ -19,7 +19,7 @@ class APIClient
         $this->url = "https://api.inbenta.io/v1";
         $this->key = $key;
         $this->secret = $secret;
-        $this->cachePath = sys_get_temp_dir();
+        $this->cachePath = rtrim(sys_get_temp_dir(), '/') . '/';
         $this->methodsCacheFile = $this->cachePath . "cached-api-methods-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
         $this->cachedAccessTokenFile = $this->cachePath . "cached-accesstoken-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
 
