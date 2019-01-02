@@ -239,7 +239,7 @@ class ChatbotConnector
 			    if ($userAnswer[0]['escalateOption']) {
 			        $this->escalateToAgent();
 			    } else {
-			        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('escalation-rejected')));
+			        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('escalation_rejected')));
 			    }
 			    die();
 			}
@@ -303,7 +303,7 @@ class ChatbotConnector
 				$this->externalClient->showBotTyping();
 				$botResponse = $this->botClient->sendMessage($message);
 				if (isset($botResponse->message) && $botResponse->message == "Endpoint request timed out") {
-					$botResponse = $this->buildTextMessage($this->lang->translate('api-timeout'));
+					$botResponse = $this->buildTextMessage($this->lang->translate('api_timeout'));
 				}
 				return $botResponse;
 
@@ -489,7 +489,7 @@ class ChatbotConnector
                 $willEscalate           = $this->shouldEscalateFromNegativeRating() && $this->chatClient->checkAgentsAvailable();
                 if ($askingRatingComment && !$willEscalate) {
 					// Ask for a comment on a content-rating
-					return $this->buildTextMessage($this->lang->translate('ask-rating-comment'));
+					return $this->buildTextMessage($this->lang->translate('ask_rating_comment'));
 				} else {
 					// Forget we were asking for a rating comment
 					$this->session->set('askingRatingComment', false);
