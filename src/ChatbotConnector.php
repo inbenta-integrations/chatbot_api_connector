@@ -510,6 +510,12 @@ class ChatbotConnector
 		// Only in development and preproduction environments
 		if ($this->environment !== EnvironmentDetector::PRODUCTION_ENV) {
 			switch ($message['message']) {
+				case 'clear_cached_appdata':
+					$removed = unlink($this->botClient->appDataCacheFile);
+					$this->sendMessagesToExternal($this->buildTextMessage('Clear cached AppData response: "' .$removed. '"'));
+					die();
+					break;
+
 				case 'clear_user_session':
 					$this->session->clear();
 					$this->sendMessagesToExternal($this->buildTextMessage('User session cleared.'));

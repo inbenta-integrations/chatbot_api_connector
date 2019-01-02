@@ -34,4 +34,15 @@ class LanguageManager
         //If translation not found, return the input key
         return $key;
     }
+
+    /**
+     *  Add translations to the dictionary
+     */
+    public function addTranslations($translations)
+    {
+        foreach ($translations as $label => $text) {
+            $this->data->set($label, $text);
+        }
+    }
+
 }
