@@ -12,7 +12,6 @@ class APIClient
     protected $methods;
     protected $cachePath;
     const     TOKEN_REFRESH_OFFSET  = 180;       // Time in seconds before access-token-expiration when it should be refreshed
-    const     CACHED_METHODS_TTL    = 86400;     // Time in seconds where "/apis" cached-data is valid
 
     function __construct($key, $secret)
     {
@@ -20,30 +19,9 @@ class APIClient
         $this->key = $key;
         $this->secret = $secret;
         $this->cachePath = rtrim(sys_get_temp_dir(), '/') . '/';
-        $this->methodsCacheFile = $this->cachePath . "cached-api-methods-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
         $this->cachedAccessTokenFile = $this->cachePath . "cached-accesstoken-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
 
         $this->updateAccessToken();
-        $this->updateMethods();
-    }
-
-    public function updateMethods()
-    {   
-        if (!isset($this->methods) || empty($this->methods)) {
-            // Try to get methods from cache file (/SYS_TMP_DIR/cached-api-methods-API_KEY)
-            $cachedMethods          = file_exists($this->methodsCacheFile) ? json_decode(file_get_contents($this->methodsCacheFile)) : null;
-            $cachedMethodsSeconds   = file_exists($this->methodsCacheFile) ? time() - filemtime($this->methodsCacheFile) : null;
-            if (is_object($cachedMethods) && !empty($cachedMethods) && $cachedMethodsSeconds < self::CACHED_METHODS_TTL) {
-                $this->methods = $cachedMethods;
-            } else {
-                // Update access token if needed
-                $this->updateAccessToken();
-                $headers = array("x-inbenta-key:".$this->key, "Authorization: Bearer ".$this->accessToken);
-                $response = $this->call("/apis", "GET", $headers);
-                $this->methods = $response->apis;
-                file_put_contents($this->methodsCacheFile, json_encode($this->methods));
-            }
-        }
     }
 
     protected function updateAccessToken()
@@ -76,6 +54,7 @@ class APIClient
         if (is_object($cachedAccessToken) && !empty($cachedAccessToken) && !$cachedAccessTokenExpired) {
             $this->accessToken = $cachedAccessToken->accessToken;
             $this->ttl = $cachedAccessToken->expiration;
+            $this->methods = $cachedAccessToken->apis;
         }
     }
 
@@ -89,6 +68,7 @@ class APIClient
         }
         $this->accessToken  = $accessInfo->accessToken;
         $this->ttl          = $accessInfo->expiration;
+        $this->methods      = $accessInfo->apis;
         file_put_contents($this->cachedAccessTokenFile, json_encode($accessInfo));
     }
 
@@ -105,6 +85,7 @@ class APIClient
         }
         $this->accessToken  = $accessInfo->accessToken;
         $this->ttl          = $accessInfo->expiration;
+        $this->methods      = $accessInfo->apis;
         file_put_contents($this->cachedAccessTokenFile, json_encode($accessInfo));
     }
 
