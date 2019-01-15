@@ -47,6 +47,25 @@ class ChatbotConnector
 	}
 
 	/**
+	 *	Retrieve Language translations from ExtraInfo
+	 */
+	protected function getTranslationsFromExtraInfo($parentGroupName, $translationsObjectName)
+	{
+		$translations = [];
+		$extraInfoData = $this->botClient->getExtraInfo($parentGroupName);
+		foreach ($extraInfoData->results as $element) {
+			if ($element->name == $translationsObjectName) {
+				$translations = json_decode(json_encode($element->value), true);
+				break;
+			}
+		}
+		$language = $this->conf->get('conversation.default.lang');
+		if (isset($translations[$language]) && count($translations[$language]) && is_array($translations[$language][0])) {
+			$this->lang->addTranslations($translations[$language][0]);
+		}
+	}
+
+	/**
 	 * 	Handle a request (from external service or from Hyperchat)
 	 */
 	public function handleRequest()
