@@ -85,7 +85,8 @@ class APIClient
         }
         $this->accessToken  = $accessInfo->accessToken;
         $this->ttl          = $accessInfo->expiration;
-        $this->methods      = $accessInfo->apis;
+        // Set the API methods in the $accessInfo data from cache because the /refresToken endpoint does not return this data
+        $accessInfo->apis   = $this->methods;
         file_put_contents($this->cachedAccessTokenFile, json_encode($accessInfo));
     }
 
@@ -112,7 +113,7 @@ class APIClient
         curl_close($curl);
 
         if ($err) {
-            return '';
+            return $err;
         } else {
             return json_decode($response);
         }

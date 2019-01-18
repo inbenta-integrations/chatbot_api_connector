@@ -15,6 +15,11 @@ class ChatbotAPIClient extends APIClient
     function __construct($key, $secret, $session, $conversationConfiguration)
     {
         parent::__construct($key, $secret);
+
+        // Check if Chatbot API endpoint is known
+        if (!isset($this->methods) || !isset($this->methods->chatbot)){
+            throw new Exception("Missing Inbenta API endpoints");
+        }
         $this->url = $this->methods->chatbot;
         $this->session = $session;
         $this->appDataCacheFile = $this->cachePath . "cached-appdata-" . preg_replace("/[^A-Za-z0-9 ]/", '', $this->key);
