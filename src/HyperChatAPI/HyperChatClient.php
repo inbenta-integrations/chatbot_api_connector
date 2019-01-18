@@ -80,27 +80,17 @@ abstract class HyperChatClient extends HyperChat
         ));
 
         $creator = null;
-        switch ($event['trigger']) {
-            case 'messages:new':
-                $chat = $client->chats->findById($event['data']['message']['chat'], array('secret' => $config['secret'] ));
-                $creator = $client->users->findById($chat->chat->creator, array('secret' => $config['secret'] ))->user; //userId
-            break;
-
-            case 'chats:close':
-                $chat = $client->chats->findById($event['data']['chatId'], array('secret' => $config['secret'] ))->chat;
-                $creator = $client->users->findById($chat->creator, array('secret' => $config['secret'] ))->user;
-            break;
-
-            case 'invitations:new':
-            case 'invitations:accept':
-                $chat = $client->chats->findById($event['data']['chatId'], array('secret' => $config['secret'] ));
-                $creator = $client->users->findById($chat->chat->creator, array('secret' => $config['secret'] ))->user;
-            break;
-
-            case 'forever:alone':
-                $chat = $client->chats->findById($event['data']['chatId'], array('secret' => $config['secret'] ))->chat;
-                $creator = $client->users->findById($chat->creator, array('secret' => $config['secret'] ))->user;
-            break;
+        if (isset($event['data'])) {
+            $chatId = null;
+            if (isset($event['data']['chatId'])) {
+                $chatId = $event['data']['chatId'];
+            } elseif (isset($event['data']['message']) && isset($event['data']['message']['chat'])) {
+                $chatId = $event['data']['message']['chat'];
+            }
+            if ($chatId) {
+                $chat    = $client->chats->findById($chatId, array('secret' => $config['secret']));
+                $creator = $client->users->findById($chat->chat->creator, array('secret' => $config['secret']))->user;
+            }
         }
         return $creator;
     }
