@@ -527,7 +527,7 @@ class ChatbotConnector
 	protected function handleCommands($message)
 	{
 		// Only in development and preproduction environments
-		if ($this->environment !== EnvironmentDetector::PRODUCTION_ENV) {
+		if (isset($message['message']) && $this->environment !== EnvironmentDetector::PRODUCTION_ENV) {
 			switch ($message['message']) {
 				case 'clear_cached_appdata':
 					$removed = unlink($this->botClient->appDataCacheFile);
