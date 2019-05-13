@@ -50,7 +50,7 @@ class APIClient
     protected function getAccessTokenFromCache()
     {
         $cachedAccessToken          = file_exists($this->cachedAccessTokenFile) ? json_decode(file_get_contents($this->cachedAccessTokenFile)) : null;
-        $cachedAccessTokenExpired   = is_object($cachedAccessToken) && !empty($cachedAccessToken) ? $cachedAccessToken->expiration < time() : true;
+        $cachedAccessTokenExpired   = is_object($cachedAccessToken) && !empty($cachedAccessToken) && isset($cachedAccessToken->expiration) ? $cachedAccessToken->expiration < time() : true;
         if (is_object($cachedAccessToken) && !empty($cachedAccessToken) && !$cachedAccessTokenExpired) {
             $this->accessToken = $cachedAccessToken->accessToken;
             $this->ttl = $cachedAccessToken->expiration;
@@ -63,7 +63,7 @@ class APIClient
         $headers = array("x-inbenta-key:".$this->key);
         $params = array("secret=".$this->secret);
         $accessInfo = $this->call("/auth","POST", $headers, $params);
-        if (isset($accessInfo->messsage) && $accessInfo->message == 'Unauthorized') {
+        if (!isset($accessInfo->accessToken) || isset($accessInfo->messsage) && $accessInfo->message == 'Unauthorized') {
           throw new Exception("Invalid key/secret");
         }
         $this->accessToken  = $accessInfo->accessToken;
