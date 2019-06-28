@@ -103,8 +103,13 @@ class ChatbotConnector
 		}
 		// If the user clicked in a Federated Bot option, handle its request
 		if (count($digestedRequest) && isset($digestedRequest[0]['extendedContentAnswer'])) {
-			$answer = json_decode(json_encode($digestedRequest[0]['extendedContentAnswer']));
-			$this->displayFederatedBotAnswer($answer);
+			$selectedAnswer = json_decode(json_encode($digestedRequest[0]['extendedContentAnswer']));
+			$answers = $this->session->get('federatedSubanswers');
+			if (is_int($selectedAnswer) && is_array($answers) && isset($answers[$selectedAnswer])) {
+				$this->displayFederatedBotAnswer($answers[$selectedAnswer]);
+			} elseif (is_array($selectedAnswer)) {
+				$this->displayFederatedBotAnswer($selectedAnswer);
+			}
 			die();
 		}
 	}
