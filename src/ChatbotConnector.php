@@ -251,6 +251,7 @@ class ChatbotConnector
 				}
 				// Because no agents available, reduce the current escalation counter to escalate on next counter update
 				$this->reduceCurrentEscalationCounter();
+				$this->trackContactEvent("CONTACT_UNATTENDED");
 			}
 		} else {
 			// Handle user response to an escalation question
@@ -264,6 +265,7 @@ class ChatbotConnector
 			        $this->escalateToAgent();
 			    } else {
 			        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('escalation_rejected')));
+			        $this->trackContactEvent("CONTACT_REJECTED");
 			    }
 			    die();
 			}
@@ -293,6 +295,7 @@ class ChatbotConnector
 			$response =  $this->chatClient->openChat($chatData);
 			if (!isset($response->error) && isset($response->chat)) {
 				$this->session->set('chatOnGoing', $response->chat->id);
+				$this->trackContactEvent("CONTACT_ATTENDED");
 			} else {
 				$this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('error_creating_chat')));
 			}
@@ -301,6 +304,7 @@ class ChatbotConnector
 			if ($this->session->get('escalationType') == static::ESCALATION_API_FLAG) {
 				$this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
 			}
+			$this->trackContactEvent("CONTACT_UNATTENDED");
 		}
 	}
 
@@ -589,5 +593,20 @@ class ChatbotConnector
 	    ob_end_flush();
 	    ob_flush();
 	    flush();
+	}
+
+	/**
+	 * Function to track CONTACT events
+	 * @param string $type Contact type: "CONTACT_ATTENDED", "CONTACT_UNATTENDED" or "CONTACT_REJECTED"
+	 */
+	public function trackContactEvent($type)
+	{
+	    $data = array(
+	        "type" => $type,
+	        "data" => array(
+	            "value" => "true"
+	        )
+	    );
+	    $this->botClient->trackEvent($data);
 	}
 }
