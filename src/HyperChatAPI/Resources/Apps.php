@@ -40,6 +40,18 @@ class Apps extends ResourcesBase
     }
 
     /**
+     * Update the specified agent's information
+     *
+     * @param  string  $agentId Agent ID
+     * @param  array   $data    Array of agent data
+     * @return object           Modified agent information
+     */
+    public function update($appId, $query = array(), $data = array())
+    {
+        return $this->client->put($this->fullPath($appId), $query, $data);
+    }
+
+    /**
      * Validate an app ID
      *
      * @param  string  $appId  App ID

@@ -24,6 +24,7 @@ class Client
         $this->settings = new Resources\Settings($this);
         $this->users = new Resources\Users($this);
         $this->webhooks = new Resources\Webhooks($this);
+        $this->queues = new Resources\Queues($this);
     }
 
     /**

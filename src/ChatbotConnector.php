@@ -239,7 +239,7 @@ class ChatbotConnector
 	{
 		// Ask the user if wants to escalate
 		if (!$this->session->get('askingForEscalation', false)) {
-			if ($this->chatClient->checkAgentsAvailable()) {
+			if ($this->checkAgents()) {
 				// Ask the user if wants to escalate
 				$this->session->set('askingForEscalation', true);
 				$escalationMessage = $this->digester->buildEscalationMessage();
@@ -277,7 +277,7 @@ class ChatbotConnector
      */
 	protected function escalateToAgent()
 	{
-		$agentsAvailable = $this->chatClient->checkAgentsAvailable();
+		$agentsAvailable = $this->checkAgents();
 		
 		if ($agentsAvailable) {
 			// Start chat
@@ -306,6 +306,17 @@ class ChatbotConnector
 			}
 			$this->trackContactEvent("CONTACT_UNATTENDED");
 		}
+	}
+
+	/**
+	 * Check if there are agents available
+	 * @return boolean
+	 */
+	protected function checkAgents()
+	{
+		$chatConf = $this->conf->get('chat.chat');
+		$queueActive = isset($chatConf['queue']) && isset($chatConf['queue']['active']) && $chatConf['queue']['active'];
+		return $queueActive ? $this->chatClient->checkAgentsOnline() : $this->chatClient->checkAgentsAvailable();
 	}
 
     /**
@@ -514,7 +525,7 @@ class ChatbotConnector
 		switch ($event['type']) {
 			case 'rate':
 				$askingRatingComment    = $this->session->has('askingRatingComment') && $this->session->get('askingRatingComment') != false;
-                $willEscalate           = $this->shouldEscalateFromNegativeRating() && $this->chatClient->checkAgentsAvailable();
+                $willEscalate           = $this->shouldEscalateFromNegativeRating() && $this->checkAgents();
                 if ($askingRatingComment && !$willEscalate) {
 					// Ask for a comment on a content-rating
 					return $this->buildTextMessage($this->lang->translate('ask_rating_comment'));

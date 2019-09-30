@@ -18,17 +18,6 @@ class Settings extends ResourcesBase
     }
 
     /**
-     * Override all configuration (or create a new one) for the current app
-     *
-     * @param  array  $data   Settings information
-     * @return object         Newly created settings object
-     */
-    public function create($data)
-    {
-        return $this->client->post($this->fullPath(), null, $data);
-    }
-
-    /**
      * Update the current app's configuration
      *
      * @param  array  $data   Settings information

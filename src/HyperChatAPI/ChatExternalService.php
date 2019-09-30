@@ -52,6 +52,22 @@ class ChatExternalService
     }
 
     /**
+     * Notify the external service that the queue position has been updated
+     *
+     * @param  string  $chat
+     * @param  string  $user    User waiting
+     * @param  object  data     Data object with information on the queue status (queuePosition property)
+     */
+    public function notifyQueueUpdate($chat, $user, $data)
+    {
+        $pos = $data['queuePosition'];
+        if ($pos > 0) {
+            $queue_pos_label = $pos === 1 ? 'queue_estimation_first' : 'queue_estimation';
+            $this->externalClient->sendTextMessage($this->lang->translate($queue_pos_label, ['queuePosition' => $pos]));
+        }
+    }
+
+    /**
      * Send a message from the agent to the external service
      *
      * @param  string $chat

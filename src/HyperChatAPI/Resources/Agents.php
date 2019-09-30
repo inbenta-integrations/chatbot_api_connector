@@ -41,6 +41,18 @@ class Agents extends ResourcesBase
     }
 
     /**
+     * Get wether there are online agents for the given room and optional language
+     *
+     * @param  array  $query  Array of query parameters
+     * @return bool
+     */
+    public function online($query = array())
+    {
+        return $this->client->get($this->fullPath('online'), $query);
+    }
+
+
+    /**
      * Register an agent in the chat app
      *
      * @param  $data Agent data

@@ -8,12 +8,7 @@ use GuzzleHttp\Exception\TransferException;
 class Dispatcher
 {
     const DEFAULT_API_VERSION = 'v1';
-    const DEFAULT_SERVER_PORT = 8000;
-
-    private static $server_urls = array(
-        'eu'  => 'https://hyperchat-eu.inbenta.chat',
-        'us'  => 'https://hyperchat-us.inbenta.chat',
-    );
+    const DEFAULT_SERVER_PORT = 443;
 
     protected $server_port;
     protected $http;
@@ -24,7 +19,6 @@ class Dispatcher
 
     public function __construct($conf = array())
     {
-        $this->setRegion($conf);
         $this->setAppId($conf);
         $this->setAPIVersion($conf);
         $this->setServerPort($conf);
@@ -145,25 +139,6 @@ class Dispatcher
     }
 
     /**
-     * Set the region to make the requests to (EU, US)
-     * @param array $conf Configuration array
-     */
-    protected function setRegion($conf)
-    {
-        if (isset($conf['server'])) {
-            return;
-        }
-        if (!isset($conf['region'])) {
-            throw new \Exception('Please, specify a server region (eu or us)');
-        }
-        if (!array_key_exists($conf['region'], self::$server_urls)) {
-            throw new \Exception('The specified region is not valid');
-        }
-
-        $this->_region = $conf['region'];
-    }
-
-    /**
      * Set the server port
      * @param array $conf
      */
@@ -171,7 +146,7 @@ class Dispatcher
     {
         if (!isset($conf['server_port'])) {
             $this->server_port = self::DEFAULT_SERVER_PORT;
-        } else if (isset($conf['server_port'])) {
+        } else {
             $this->server_port = $conf['server_port'];
         }
     }
@@ -189,9 +164,6 @@ class Dispatcher
                 $conf['server'] = chop($conf['server'], ':'.$this->server_port);
             }
             $this->_server = $conf['server'];
-        } else {
-            // select region
-            $this->_server = self::$server_urls[$this->_region];
         }
     }
 }

@@ -196,12 +196,26 @@ class HyperChat
                     $this->extService->notifyChatClose($chat, $targetUser, $system, $attended);
 
                     break;
+
+                case 'queues:update':
+                    $chat = $this->getChatInfo($eventData['chatId']);
+                    if (!$chat || $chat->source !== $this->config->get('source')) {
+                        return;
+                    }
+                    $user = $this->getUserInfo($eventData['userId']);
+                    $data = $eventData['data'];
+                    $this->extService->notifyQueueUpdate($chat, $user, $data);
             }
         }
     }
 
     public function openChat($data)
     {
+        $queueActive = false;
+        $queueConfig = $this->config->get('queue');
+        if ($queueConfig && isset($queueConfig['active'])) {
+            $queueActive = $queueConfig['active'];
+        }
 
         // try to register the user, if it exists, update its info
         $user = $this->signupOrUpdateUser($data['user']);
@@ -224,7 +238,7 @@ class HyperChat
             // if there's no externalId specified in data, return it too
             $considerExternalId = isset($data['chat']) && isset($data['chat']['externalId']) && !empty($data['chat']['externalId']);
             if (!$considerExternalId || $chat->externalId === $data['chat']['externalId']) {
-                $this->chatOpeningEnd($data['user']['externalId']);           
+                $this->chatOpeningEnd($data['user']['externalId']);
                 return (object) [
                     'chat' => $chat,
                     'existed' => true
@@ -234,8 +248,9 @@ class HyperChat
 
         // Check for available agents before trying to create a new chat
         $roomId = !empty($data['roomId']) ? $data['roomId'] : $this->config->get('roomId');
-        if (!$this->checkAgentsAvailable($roomId)) {
-            $this->chatOpeningEnd($data['user']['externalId']); 
+        $check = $queueActive ? $this->checkAgentsOnline($roomId) : $this->checkAgentsAvailable($roomId);
+        if (!$check) {
+            $this->chatOpeningEnd($data['user']['externalId']);
             return (object) [ 'error' => 'No available agents' ];
         }
 
@@ -251,12 +266,12 @@ class HyperChat
             $requestBody['externalId'] = $data['chat']['externalId'];
         }
         if (isset($data['history'])) {
-            $processedHistory = array_map(function($entry) use (&$user){
+            $processedHistory = array_map(function($entry) use (&$user, $data){
                 // if the sender is the user, set it's userId
                 if ($entry['sender'] !== 'assistant') {
                     $entry['sender'] = $user->id;
                 }
-                $this->chatOpeningEnd($data['user']['externalId']); 
+                $this->chatOpeningEnd($data['user']['externalId']);
                 return $entry;
             }, $data['history']);
 
@@ -271,13 +286,17 @@ class HyperChat
 
         $chat = $response->chat;
 
-        // assign the chat to any available agent
-        $response = $this->api->chats->assign($chat->id, [ 'secret' => $this->config->get('secret') ]);
-        if (isset($response->error)) {
-            $this->chatOpeningEnd($data['user']['externalId']);  
-            return (object) [ 'error' => 'Chat assignation failed. '.$response->error->message ];
+        if (!$queueActive) {
+            // assign the chat to any available agent
+            $response = $this->api->chats->assign($chat->id, [ 'secret' => $this->config->get('secret') ]);
+
+            if (isset($response->error)) {
+                $this->chatOpeningEnd($data['user']['externalId']);
+                return (object) [ 'error' => 'Chat assignation failed. '.$response->error->message ];
+            }
         }
-        $this->chatOpeningEnd($data['user']['externalId']);  
+
+        $this->chatOpeningEnd($data['user']['externalId']);
         return (object) [
             'chat' => $chat,
             'existed' => false
@@ -369,6 +388,24 @@ class HyperChat
             property_exists($response, 'agents') &&
             property_exists($response->agents, $roomId) &&
             $response->agents->{$roomId} > 0
+        );
+    }
+
+    /**
+     * Check for online agents in a single room
+     * @param  string   $roomId
+     * @return boolean
+     */
+    public function checkAgentsOnline($roomId = null)
+    {
+        $roomId = $roomId ? $roomId : $this->config->get('roomId');
+        if (!$roomId) {
+            return false;
+        }
+        $response = $this->api->agents->online([ 'roomId' => $roomId ]);
+        return (
+            property_exists($response, 'agentsOnline') &&
+            $response->agentsOnline == true
         );
     }
 
@@ -542,7 +579,7 @@ class HyperChat
     {
         if(isset($_SESSION[$userId]['__opening__'])) {
             return $_SESSION[$userId]['__opening__'];
-        } 
+        }
         return false;
     }
 
@@ -563,6 +600,6 @@ class HyperChat
     {
         if(isset($_SESSION[$userId]['__opening__'])) {
             $_SESSION[$userId]['__opening__'] = false;
-        }  
+        }
     }
 }

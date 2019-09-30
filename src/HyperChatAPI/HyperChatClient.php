@@ -76,7 +76,7 @@ abstract class HyperChatClient extends HyperChat
     {
         $client = DefaultHyperchatClient::basic(array(
             'appId' => $config['appId'],
-            'region' => $config['region']
+            'server' => $config['server']
         ));
 
         $creator = null;
