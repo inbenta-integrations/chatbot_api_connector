@@ -337,20 +337,18 @@ class ChatbotConnector
 	protected function sendMessageToBot( $message )
 	{
 		try {
-			// Send message to bot
-			if (isset($message['message'])) {
+			if (isset($message['type']) && $message['type'] !== 'answer') {
+				// Send event track to bot
+				return $this->sendEventToBot($message);
+			} elseif (isset($message['message']) || isset($message['option']) || isset($message['directCall'])) {
+				// Send message to bot
 				$this->externalClient->showBotTyping();
 				$botResponse = $this->botClient->sendMessage($message);
 				if (isset($botResponse->message) && $botResponse->message == "Endpoint request timed out") {
 					$botResponse = $this->buildTextMessage($this->lang->translate('api_timeout'));
 				}
 				return $botResponse;
-
-			// Send event track to bot
-			} elseif (isset($message['type'])) {
-				return $this->sendEventToBot($message);
 			}
-			
 		} catch (Exception $e) {
 			//If session expired, start new conversation and retry
 			if ($e->getCode() == 400 && $e->getMessage() == 'Session expired') {
