@@ -31,7 +31,7 @@ class ChatbotAPIClient extends APIClient
         $this->sessionToken = $sessionToken;
     }
 
-    public function startConversation($conf = array(), $userType = 0, $environment = 'development')
+    public function startConversation($conf = array(), $userType = 0, $environment = 'development', $source = null)
     {
         // Update access token if needed
         $this->updateAccessToken();
@@ -49,6 +49,10 @@ class ChatbotAPIClient extends APIClient
             "x-inbenta-user-type:".$userType,                   //Profile
             "x-inbenta-env:" . $environment,                    //Environment
         );
+
+        if($source) {
+            $headers[] = "x-inbenta-source:".$source;
+        }
 
         $response = $this->call("/v1/conversation", "POST", $headers, $params);
 
@@ -178,7 +182,7 @@ class ChatbotAPIClient extends APIClient
         $this->sessionToken = $this->session->get('sessionToken.token');
         $this->sessionTokenExpiration = $this->session->get('sessionToken.expiration');
         if (is_null($this->sessionToken) || is_null($this->sessionTokenExpiration) || $this->sessionTokenExpiration < time()) {
-            $this->startConversation($this->conversationConf['configuration'], $this->conversationConf['userType'], $this->conversationConf['environment']);
+            $this->startConversation($this->conversationConf['configuration'], $this->conversationConf['userType'], $this->conversationConf['environment'], $this->conversationConf['source']);
         }
     }
 }
