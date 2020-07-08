@@ -98,3 +98,9 @@ return array(
     'environments' => '/environments.php',
 );
 ```
+
+### DEPENDENCIES
+This library uses these dependencies loaded through Composer:
+* Symfony http-foundation ~3.4.36
+* Guzzle ~6.3.3
+* PHP ~7.1
