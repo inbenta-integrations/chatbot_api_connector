@@ -352,7 +352,7 @@ class ChatbotConnector
 		} catch (Exception $e) {
 			//If session expired, start new conversation and retry
 			if ($e->getCode() == 400 && $e->getMessage() == 'Session expired') {
-				$this->botClient->startConversation($this->conf->get('conversation.default'), $this->conf->get('conversation.user_type'), $this->environment);
+				$this->botClient->startConversation($this->conf->get('conversation.default'), $this->conf->get('conversation.user_type'), $this->environment, $this->getSource());
 				return $this->sendMessageToBot($message);
 			}
 			throw new Exception("Error while sending message to bot: " . $e->getMessage());
@@ -617,5 +617,17 @@ class ChatbotConnector
 	        )
 	    );
 	    $this->botClient->trackEvent($data);
+    }
+    
+
+    /**
+	 * Get the configured chatbot source
+	 * @return string|null configured source or Null if no source defined 
+	 */
+	public function getSource()
+	{
+		$conf = $this->conf->get('conversation');
+		return isset($conf['source']) && $conf['source'] !== '' ? $conf['source'] : null;
 	}
+
 }
