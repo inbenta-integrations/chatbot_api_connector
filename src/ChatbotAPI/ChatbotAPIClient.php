@@ -1,11 +1,12 @@
 <?php
+
 namespace Inbenta\ChatbotConnector\ChatbotAPI;
 
 use \Exception;
 use \stdClass;
 
 class ChatbotAPIClient extends APIClient
-{ 
+{
     protected $sessionToken = null;
     protected $sessionTokenExpiration = null;
     protected $appData      = null;
@@ -17,7 +18,7 @@ class ChatbotAPIClient extends APIClient
         parent::__construct($key, $secret);
 
         // Check if Chatbot API endpoint is known
-        if (!isset($this->methods) || !isset($this->methods->chatbot)){
+        if (!isset($this->methods) || !isset($this->methods->chatbot)) {
             throw new Exception("Missing Inbenta API endpoints");
         }
         $this->url = $this->methods->chatbot;
@@ -46,18 +47,18 @@ class ChatbotAPIClient extends APIClient
             "Authorization: Bearer " . $this->accessToken,
             "Content-Type: application/json,charset=UTF-8",
             "Content-Length: " . strlen($string),
-            "x-inbenta-user-type:".$userType,                   //Profile
+            "x-inbenta-user-type:" . $userType,                   //Profile
             "x-inbenta-env:" . $environment,                    //Environment
         );
 
         if (!is_null($source) && $source !== '') {
-            $headers[] = "x-inbenta-source: ". $source;
+            $headers[] = "x-inbenta-source: " . $source;
         }
 
         $response = $this->call("/v1/conversation", "POST", $headers, $params);
 
         if (!isset($response->sessionToken)) {
-            throw new Exception("Error starting conversation: " . json_encode($response,true), 1);
+            throw new Exception("Error starting conversation: " . json_encode($response, true), 1);
         } else {
             $this->sessionToken = $response->sessionToken;
             $this->sessionTokenExpiration = time() + self::SESSION_TOKEN_TTL;
@@ -75,13 +76,13 @@ class ChatbotAPIClient extends APIClient
         $this->updateSessionToken();
 
         // Prepare the message
-        $string = json_encode( $message );
+        $string = json_encode($message);
         $params = array("payload" => $string);
 
         // Headers
         $headers = array(
-            "x-inbenta-key:".$this->key,
-            "Authorization: Bearer ".$this->accessToken,
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
             "x-inbenta-session: Bearer " . $this->sessionToken,
             "Content-Type: application/json,charset=UTF-8",
             "Content-Length: " . strlen($string)
@@ -90,7 +91,7 @@ class ChatbotAPIClient extends APIClient
         $response = $this->call("/v1/conversation/message", "POST", $headers, $params);
 
         if (isset($response->errors)) {
-            throw new Exception($response->errors[0]->message, $response->errors[0]->code );
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
         } else {
             return $response;
         }
@@ -109,8 +110,8 @@ class ChatbotAPIClient extends APIClient
 
         // Headers
         $headers  = array(
-            "x-inbenta-key:".$this->key,
-            "Authorization: Bearer ".$this->accessToken,
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
             "x-inbenta-session: Bearer " . $this->sessionToken,
             "Content-Type: application/json,charset=UTF-8",
             "Content-Length: " . strlen($string)
@@ -119,7 +120,7 @@ class ChatbotAPIClient extends APIClient
         $response = $this->call("/v1/tracking/events", "POST", $headers, $params);
 
         if (isset($response->errors)) {
-            throw new Exception($response->errors[0]->message, $response->errors[0]->code );
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
         } else {
             return $response;
         }
@@ -164,8 +165,8 @@ class ChatbotAPIClient extends APIClient
     {
         // Update access token if needed
         $this->updateAccessToken();
-        $headers = array("x-inbenta-key:".$this->key, "Authorization: Bearer ".$this->accessToken);
-        $response = $this->call("/v1/app/data/".$data_id."?name=".$name, "GET", $headers);
+        $headers = array("x-inbenta-key:" . $this->key, "Authorization: Bearer " . $this->accessToken);
+        $response = $this->call("/v1/app/data/" . $data_id . "?name=" . $name, "GET", $headers);
         if (isset($response->errors)) {
             throw new Exception($response->errors[0]->message, $response->errors[0]->code);
         }
@@ -184,6 +185,38 @@ class ChatbotAPIClient extends APIClient
         if (is_null($this->sessionToken) || is_null($this->sessionTokenExpiration) || $this->sessionTokenExpiration < time()) {
             $source = isset($this->conversationConf['source']) ? $this->conversationConf['source'] : null;
             $this->startConversation($this->conversationConf['configuration'], $this->conversationConf['userType'], $this->conversationConf['environment'], $source);
+        }
+    }
+
+    /**
+     * Set a value of a variable
+     */
+    public function setVariable($variable)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+
+        // Prepare the message
+        $string = json_encode($variable);
+        $params = array("payload" => $string);
+
+        // Headers
+        $headers = array(
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken,
+            "Content-Type: application/json,charset=UTF-8",
+            "Content-Length: " . strlen($string)
+        );
+
+        $response = $this->call("/v1/conversation/variables", "POST", $headers, $params);
+
+        if (isset($response->errors)) {
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
+        } else {
+            return $response;
         }
     }
 }
