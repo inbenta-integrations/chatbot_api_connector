@@ -290,8 +290,7 @@ class ChatbotConnector
                         $message = ["directCall" => "escalationStart"];
                         $botResponse = $this->sendMessageToBot($message);
                         $this->sendMessagesToExternal($botResponse);
-                    }
-                    else {
+                    } else {
                         $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
                     }
                     // Because no agents available, reduce the current escalation counter to escalate on next counter update
@@ -354,6 +353,10 @@ class ChatbotConnector
                     'extraInfo'     => array()
                 )
             );
+            $history = $this->chatbotHistory();
+            if (count($history) > 0) {
+                $chatData['history'] = $history;
+            }
             $response =  $this->chatClient->openChat($chatData);
             if (!isset($response->error) && isset($response->chat)) {
                 $this->session->set('chatOnGoing', $response->chat->id);
@@ -778,7 +781,7 @@ class ChatbotConnector
         if ($this->session->get('escalationV2', false)) {
             $escalationFormData = $this->session->get('escalationForm', false);
             if ($escalationFormData) {
-                if ($this->session->get('escalationType') == static::ESCALATION_OFFER && !$this->session->get('escalationOfferYes', false)) { 
+                if ($this->session->get('escalationType') == static::ESCALATION_OFFER && !$this->session->get('escalationOfferYes', false)) {
                     return false;
                 }
                 if (method_exists($this->externalClient, "setFullName") && method_exists($this->externalClient, "setEmail") && method_exists($this->externalClient, "setExtraInfo")) {
@@ -810,5 +813,26 @@ class ChatbotConnector
             return $botVariableResponse->success;
         }
         return false;
+    }
+
+    /**
+     * Get the history of the current conversation
+     */
+    protected function chatbotHistory()
+    {
+        $history = [];
+        $historyTmp = $this->botClient->getChatHistory();
+        if (is_array($historyTmp) && count($historyTmp) > 0) {
+            foreach ($historyTmp as $val) {
+                if (trim($val->message) !== "") {
+                    $history[] = [
+                        'sender' => $val->user === 'bot' ? 'assistant' : $val->user,
+                        'message' => $val->message,
+                        'created' => strtotime($val->datetime)
+                    ];
+                }
+            }
+        }
+        return $history;
     }
 }

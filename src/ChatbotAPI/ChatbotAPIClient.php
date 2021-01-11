@@ -219,4 +219,28 @@ class ChatbotAPIClient extends APIClient
             return $response;
         }
     }
+
+    /**
+     * Get the history of the chat
+     */
+    public function getChatHistory()
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+
+        // Headers
+        $headers = array(
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+        $response = $this->call("/v1/conversation/history", "GET", $headers, []);
+        if (isset($response->errors)) {
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
+        } else {
+            return $response;
+        }
+    }
 }
