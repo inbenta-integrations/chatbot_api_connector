@@ -295,11 +295,7 @@ class ChatbotConnector
                     }
                     // Because no agents available, reduce the current escalation counter to escalate on next counter update
                     $this->reduceCurrentEscalationCounter();
-                    if ($this->session->get('escalationType') == static::ESCALATION_OFFER) {
-                        $this->trackContactEvent("CHAT_UNATTENDED");
-                    } else {
-                        $this->trackContactEvent("CONTACT_UNATTENDED");
-                    }
+                    $this->trackContactEvent("CONTACT_UNATTENDED");
                 }
             }
         } else {
@@ -380,11 +376,8 @@ class ChatbotConnector
                 } else {
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
                 }
-            } else if ($this->session->get('escalationV2', false)) {
-                $this->trackContactEvent("CHAT_UNATTENDED");
-            } else {
-                $this->trackContactEvent("CONTACT_UNATTENDED");
-            }
+            } 
+            $this->trackContactEvent("CONTACT_UNATTENDED");
         }
         $this->session->delete('escalationType');
         $this->session->delete('escalationV2');
@@ -466,7 +459,14 @@ class ChatbotConnector
                 ),
                 'message' => isset($message->message) ? $message->message : ''
             );
-            $response = $this->chatClient->sendMessage($data);
+            
+            if (isset($message->media)) {
+                $data['media'] = $message->media;
+                unset($data['message']);
+                $response = $this->chatClient->sendMedia($data);
+            } else {
+                $response = $this->chatClient->sendMessage($data);
+            }
         }
     }
 
