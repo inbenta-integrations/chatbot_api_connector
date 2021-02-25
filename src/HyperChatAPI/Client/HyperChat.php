@@ -42,7 +42,7 @@ class HyperChat
             $mediaUrl = substr($mediaUrl, 1);
         }
 
-        return $this->api->getVersionedServerUri().$mediaUrl."?appId=".$this->config->get('appId')."&secret=".$this->config->get('secret');
+        return $this->api->getVersionedServerUri() . $mediaUrl . "?appId=" . $this->config->get('appId') . "&secret=" . $this->config->get('secret');
     }
 
     /**
@@ -67,7 +67,8 @@ class HyperChat
 
         // get event data
         $event = json_decode(file_get_contents('php://input'), true);
-        if (!empty($event) &&
+        if (
+            !empty($event) &&
             isset($event['trigger']) &&
             !empty($event['data'])
         ) {
@@ -99,7 +100,7 @@ class HyperChat
                             $fullUrl = $this->getContentUrl($messageData['message']['url']);
                             $messageData['message']['fullUrl'] = $fullUrl;
                             $messageData['message']['contentBase64'] =
-                                'data:'.$messageData['message']['type'].';base64,'.
+                                'data:' . $messageData['message']['type'] . ';base64,' .
                                 base64_encode(file_get_contents($fullUrl));
                         }
 
@@ -211,24 +212,20 @@ class HyperChat
 
     public function openChat($data)
     {
-        $queueActive = false;
-        $queueConfig = $this->config->get('queue');
-        if ($queueConfig && isset($queueConfig['active'])) {
-            $queueActive = $queueConfig['active'];
-        }
+        $queueActive = $this->isQueueModeActive();
 
         // try to register the user, if it exists, update its info
         $user = $this->signupOrUpdateUser($data['user']);
         if (!$user) {
-            return (object) [ 'error' => 'Error signing up the user' ];
+            return (object) ['error' => 'Error signing up the user'];
         }
 
         // Save in session that a chat is being opened
-        if(isset($data['user']) && isset($data['user']['externalId'])) {
-            if($this->getChatOpening($data['user']['externalId'])) {
-                return (object) [ 'error' => 'Already opening a chat' ];
+        if (isset($data['user']) && isset($data['user']['externalId'])) {
+            if ($this->getChatOpening($data['user']['externalId'])) {
+                return (object) ['error' => 'Already opening a chat'];
             }
-            $this->setChatOpening($data['user']['externalId'],true);
+            $this->setChatOpening($data['user']['externalId'], true);
         }
 
         // try to get an active chat, and if there's none, create it
@@ -251,7 +248,7 @@ class HyperChat
         $check = $queueActive ? $this->checkAgentsOnline($roomId) : $this->checkAgentsAvailable($roomId);
         if (!$check) {
             $this->chatOpeningEnd($data['user']['externalId']);
-            return (object) [ 'error' => 'No available agents' ];
+            return (object) ['error' => 'No available agents'];
         }
 
         // create a new chat
@@ -266,7 +263,7 @@ class HyperChat
             $requestBody['externalId'] = $data['chat']['externalId'];
         }
         if (isset($data['history'])) {
-            $processedHistory = array_map(function($entry) use (&$user, $data){
+            $processedHistory = array_map(function ($entry) use (&$user, $data) {
                 // if the sender is the user, set it's userId
                 if ($entry['sender'] !== 'assistant') {
                     $entry['sender'] = $user->id;
@@ -280,19 +277,19 @@ class HyperChat
 
         $response = $this->api->chats->create($requestBody);
         if (isset($response->error)) {
-            $this->chatOpeningEnd($data['user']['externalId']); 
-            return (object) [ 'error' => 'Chat creation failed. '.$response->error->message ];
+            $this->chatOpeningEnd($data['user']['externalId']);
+            return (object) ['error' => 'Chat creation failed. ' . $response->error->message];
         }
 
         $chat = $response->chat;
 
         if (!$queueActive) {
             // assign the chat to any available agent
-            $response = $this->api->chats->assign($chat->id, [ 'secret' => $this->config->get('secret') ]);
+            $response = $this->api->chats->assign($chat->id, ['secret' => $this->config->get('secret')]);
 
             if (isset($response->error)) {
                 $this->chatOpeningEnd($data['user']['externalId']);
-                return (object) [ 'error' => 'Chat assignation failed. '.$response->error->message ];
+                return (object) ['error' => 'Chat assignation failed. ' . $response->error->message];
             }
         }
 
@@ -308,11 +305,11 @@ class HyperChat
         // Get the userId for later usage
         $user = $this->getUserByExternalId($data['user']['externalId']);
         if (is_null($user)) {
-            return (object) [ 'error' => 'User does not exist' ];
+            return (object) ['error' => 'User does not exist'];
         }
         $chat = $this->getActiveChat($user);
         if (is_null($chat)) {
-            return (object) [ 'error' => 'Chat does not exist, `openChat` first.' ];
+            return (object) ['error' => 'Chat does not exist, `openChat` first.'];
         }
         // Send a message to the chat
         $response = $this->api->chats->sendMessage($chat->id, [
@@ -322,7 +319,7 @@ class HyperChat
             'message' => $data['message']
         ]);
         if (isset($response->error)) {
-            return (object) [ 'error' => 'Sending message failed. '.$response->error->message ];
+            return (object) ['error' => 'Sending message failed. ' . $response->error->message];
         }
         return $response;
     }
@@ -332,11 +329,11 @@ class HyperChat
         // Get the userId for later usage
         $user = $this->getUserByExternalId($data['user']['externalId']);
         if (is_null($user)) {
-            return (object) [ 'error' => 'User does not exist' ];
+            return (object) ['error' => 'User does not exist'];
         }
         $chat = $this->getActiveChat($user);
         if (is_null($chat)) {
-            return (object) [ 'error' => 'Chat does not exist, `openChat` first.' ];
+            return (object) ['error' => 'Chat does not exist, `openChat` first.'];
         }
         // Send a media to the chat
         $response = $this->api->media->upload([
@@ -346,7 +343,7 @@ class HyperChat
             'media' => $data['media']
         ]);
         if (isset($response->error)) {
-            return (object) [ 'error' => 'Sending media failed. '.$response->error->message ];
+            return (object) ['error' => 'Sending media failed. ' . $response->error->message];
         }
         return $response;
     }
@@ -356,18 +353,18 @@ class HyperChat
         // Get the userId for later usage
         $user = $this->getUserByExternalId($data['user']['externalId']);
         if ($user === null) {
-            return (object) [ 'error' => 'User does not exist' ];
+            return (object) ['error' => 'User does not exist'];
         }
         $chat = $this->getActiveChat($user);
         if (is_null($chat)) {
-            return (object) [ 'error' => 'Chat does not exist, `openChat` first.' ];
+            return (object) ['error' => 'Chat does not exist, `openChat` first.'];
         }
         $response = $this->api->chats->close($chat->id, array(
             'secret' => APP_SECRET,
             'userId' => $user->id
         ));
-        if (isset($result->error)) {
-            return (object) [ 'error' => 'Closing chat failed. '.$response->error->message ];
+        if (isset($response->error)) {
+            return (object) ['error' => 'Closing chat failed. ' . $response->error->message];
         }
         return $response;
     }
@@ -383,12 +380,10 @@ class HyperChat
         if (!$roomId) {
             return false;
         }
-        $response = $this->api->agents->available([ 'roomIds' => $roomId ]);
-        return (
-            property_exists($response, 'agents') &&
+        $response = $this->api->agents->available(['roomIds' => $roomId]);
+        return (property_exists($response, 'agents') &&
             property_exists($response->agents, $roomId) &&
-            $response->agents->{$roomId} > 0
-        );
+            $response->agents->{$roomId} > 0);
     }
 
     /**
@@ -402,11 +397,9 @@ class HyperChat
         if (!$roomId) {
             return false;
         }
-        $response = $this->api->agents->online([ 'roomId' => $roomId ]);
-        return (
-            property_exists($response, 'agentsOnline') &&
-            $response->agentsOnline == true
-        );
+        $response = $this->api->agents->online(['roomId' => $roomId]);
+        return (property_exists($response, 'agentsOnline') &&
+            $response->agentsOnline == true);
     }
 
     /**
@@ -454,7 +447,7 @@ class HyperChat
      */
     protected function updateUser($userId, $data = null)
     {
-        $payload = [ 'secret' => $this->config->get('secret') ];
+        $payload = ['secret' => $this->config->get('secret')];
         if (isset($data['extraInfo'])) {
             $payload['extraInfo'] = $data['extraInfo'];
         } else {
@@ -475,7 +468,7 @@ class HyperChat
             'secret' => $this->config->get('secret'),
             'externalId' => $extId
         ]);
-        if (isset($result->error) || empty($response->users)) {
+        if (isset($response->error) || empty($response->users)) {
             return null;
         }
         return $response->users[0];
@@ -500,8 +493,8 @@ class HyperChat
      */
     protected function getUserById($id)
     {
-        $response = $this->api->users->findById($id, [ 'secret' => $this->config->get('secret') ]);
-        if (isset($result->error) || empty($response->user)) {
+        $response = $this->api->users->findById($id, ['secret' => $this->config->get('secret')]);
+        if (isset($response->error) || empty($response->user)) {
             return null;
         }
         return $response->user;
@@ -520,7 +513,7 @@ class HyperChat
         $activeChats = $user->chats;
 
         foreach ($activeChats as $chatId) {
-            $response = $this->api->chats->findById($chatId, [ 'secret' => $this->config->get('secret') ]);
+            $response = $this->api->chats->findById($chatId, ['secret' => $this->config->get('secret')]);
             if (isset($response->error) || empty($response->chat)) {
                 return null;
             }
@@ -536,7 +529,7 @@ class HyperChat
      */
     protected function getChatInfo($chatId)
     {
-        $res = $this->api->chats->findById($chatId, [ 'secret' => $this->config->get('secret') ]);
+        $res = $this->api->chats->findById($chatId, ['secret' => $this->config->get('secret')]);
         if (is_object($res) && !empty($res->chat)) {
             return $res->chat;
         }
@@ -545,7 +538,7 @@ class HyperChat
 
     protected function getUserInfo($userId)
     {
-        $res = $this->api->users->findById($userId, [ 'secret' => $this->config->get('secret') ]);
+        $res = $this->api->users->findById($userId, ['secret' => $this->config->get('secret')]);
         if (is_object($res) && !empty($res->user)) {
             return $res->user;
         }
@@ -563,7 +556,7 @@ class HyperChat
             // get the webhook secret
             $xHookSecret = $_SERVER['HTTP_X_HOOK_SECRET'];
             // set response header
-            header('X-Hook-Secret: '.$xHookSecret);
+            header('X-Hook-Secret: ' . $xHookSecret);
             // set response status code
             http_response_code(200);
             return true;
@@ -577,7 +570,7 @@ class HyperChat
      */
     private function getChatOpening($userId)
     {
-        if(isset($_SESSION[$userId]['__opening__'])) {
+        if (isset($_SESSION[$userId]['__opening__'])) {
             return $_SESSION[$userId]['__opening__'];
         }
         return false;
@@ -587,7 +580,7 @@ class HyperChat
      * Sets to the value the opening chat variable
      * @return void
      */
-    private function setChatOpening($userId,$value)
+    private function setChatOpening($userId, $value)
     {
         $_SESSION[$userId]['__opening__'] = $value;
     }
@@ -598,8 +591,21 @@ class HyperChat
      */
     private function chatOpeningEnd($userId)
     {
-        if(isset($_SESSION[$userId]['__opening__'])) {
+        if (isset($_SESSION[$userId]['__opening__'])) {
             $_SESSION[$userId]['__opening__'] = false;
         }
+    }
+
+    /**
+     * Check if queue mode is active from instance settings
+     * @return boolean
+     */
+    protected function isQueueModeActive()
+    {
+        $apiConfig = $this->api->settings->getAll();
+        if (isset($apiConfig->settings) && isset($apiConfig->settings->queue) && isset($apiConfig->settings->queue->active)) {
+            return $apiConfig->settings->queue->active;
+        }
+        return false;
     }
 }
