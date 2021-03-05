@@ -295,7 +295,7 @@ class ChatbotConnector
                     }
                     // Because no agents available, reduce the current escalation counter to escalate on next counter update
                     $this->reduceCurrentEscalationCounter();
-                    $this->trackContactEvent("CONTACT_UNATTENDED");
+                    $this->trackContactEvent("CHAT_UNATTENDED");
                 }
             }
         } else {
@@ -377,7 +377,7 @@ class ChatbotConnector
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
                 }
             } 
-            $this->trackContactEvent("CONTACT_UNATTENDED");
+            $this->trackContactEvent("CHAT_UNATTENDED");
         }
         $this->session->delete('escalationType');
         $this->session->delete('escalationV2');
@@ -690,7 +690,7 @@ class ChatbotConnector
 
     /**
      * Function to track CHAT/CONTACT events
-     * @param string $type Contact type: "CHAT_ATTENDED", "CHAT_UNATTENDED", "CONTACT_ATTENDED", "CONTACT_UNATTENDED" or "CONTACT_REJECTED"
+     * @param string $type Contact type: "CHAT_ATTENDED", "CHAT_UNATTENDED"
      */
     public function trackContactEvent($type, $chatId = null)
     {
