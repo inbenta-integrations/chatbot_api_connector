@@ -36,6 +36,7 @@ class ChatExternalService
     {
         $this->externalClient->sendTextMessage($this->lang->translate('chat_closed'));
         $this->session->set('chatOnGoing', false);
+        $this->session->delete('escalationForm');
     }
 
     /**

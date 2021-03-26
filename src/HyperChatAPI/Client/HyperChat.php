@@ -603,7 +603,7 @@ class HyperChat
     protected function isQueueModeActive()
     {
         $apiConfig = $this->api->settings->getAll();
-        if (isset($apiConfig->settings) && isset($apiConfig->settings->queue) && isset($apiConfig->settings->queue->active)) {
+        if (isset($apiConfig->settings->queue->active)) {
             return $apiConfig->settings->queue->active;
         }
         return false;

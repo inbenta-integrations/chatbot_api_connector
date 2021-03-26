@@ -1,9 +1,7 @@
 <?php
 namespace Inbenta\ChatbotConnector\HyperChatAPI;
 
-use Inbenta\ChatbotConnector\HyperChatAPI\Client\HyperChat as HyperChat;
-use Inbenta\ChatbotConnector\Utils\SessionManager;
-use Inbenta\ChatbotConnector\ExternalAPI\FacebookAPIClient;
+use Inbenta\ChatbotConnector\HyperChatAPI\Client\HyperChat;
 use Inbenta\ChatbotConnector\HyperChatAPI\Client\Client as DefaultHyperchatClient;
 
 abstract class HyperChatClient extends HyperChat

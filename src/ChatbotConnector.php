@@ -339,6 +339,7 @@ class ChatbotConnector
         if ($this->checkAgents()) {
             // Start chat
             $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('creating_chat')));
+            $extraInfo = method_exists($this->externalClient, "getExtraInfo") ? $this->externalClient->getExtraInfo() : [];
             // Build user data for HyperChat API
             $chatData = array(
                 'roomId' => $this->conf->get('chat.chat.roomId'),
@@ -346,7 +347,7 @@ class ChatbotConnector
                     'name'          => $this->externalClient->getFullName(),
                     'contact'       => $this->externalClient->getEmail(),
                     'externalId'    => $this->externalClient->getExternalId(),
-                    'extraInfo'     => array()
+                    'extraInfo'     => $extraInfo
                 )
             );
             $history = $this->chatbotHistory();
@@ -376,7 +377,7 @@ class ChatbotConnector
                 } else {
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
                 }
-            } 
+            }
             $this->trackContactEvent("CHAT_UNATTENDED");
         }
         $this->session->delete('escalationType');
@@ -459,7 +460,7 @@ class ChatbotConnector
                 ),
                 'message' => isset($message->message) ? $message->message : ''
             );
-            
+
             if (isset($message->media)) {
                 $data['media'] = $message->media;
                 unset($data['message']);
@@ -761,8 +762,7 @@ class ChatbotConnector
             // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
             foreach ($messages as $msg) {
                 $this->updateNoResultsCount($msg);
-                $resetSession  = isset($msg->actions) && isset($msg->actions);
-                if ($resetSession && ($msg->actions[0]->parameters->callback == "escalateToAgent")) {
+                if (isset($msg->actions) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
                     $data = $msg->actions[0]->parameters->data;
                     $this->session->set('escalationForm', $data);
                     return true;
