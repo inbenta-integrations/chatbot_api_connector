@@ -420,6 +420,9 @@ class HyperChat
         if (!empty($userData['extraInfo'])) {
             $requestBody['extraInfo'] = (object) $userData['extraInfo'];
         }
+        if (!empty($userData['contact'])) {
+            $requestBody['contact'] = $userData['contact'];
+        }
         $response = $this->api->users->signup($requestBody);
 
         // if a user with the same externalId already existed, just update its data
@@ -427,7 +430,7 @@ class HyperChat
             if ($response->error->code === HyperChat::USER_ALREADY_EXISTS) {
                 $user = $this->getUserByExternalId($requestBody['externalId']);
 
-                $result = $this->updateUser($user->id);
+                $result = $this->updateUser($user->id, $requestBody);
                 $user = $result ? $result : $user;
             } else {
                 return false;
@@ -448,8 +451,10 @@ class HyperChat
     protected function updateUser($userId, $data = null)
     {
         $payload = ['secret' => $this->config->get('secret')];
-        if (isset($data['extraInfo'])) {
-            $payload['extraInfo'] = $data['extraInfo'];
+        if (!is_null($data) && is_array($data) && count($data) > 0) {
+            foreach ($data as $key => $val) {
+                $payload[$key] = $val;
+            }
         } else {
             return false;
         }

@@ -100,49 +100,4 @@ abstract class HyperChatClient extends HyperChat
     {
         return !is_null($chatId) ? parent::getChatInfo($chatId) : false;
     }
-
-    /**
-     * Override the parent function in order to add the email
-     * Signup a new user or update his/her data if it already exists.
-     * @param  array    $userData
-     * @return object
-     */
-    protected function signupOrUpdateUser($userData)
-    {
-        $user = null;
-
-        $requestBody = array(
-            'name' => $userData['name'],
-        );
-
-        if (!empty($userData['externalId'])) {
-            $requestBody['externalId'] = $userData['externalId'];
-        }
-        if (!empty($userData['extraInfo'])) {
-            $requestBody['extraInfo'] = (object) $userData['extraInfo'];
-        }
-        /*********** CUSTOM ***********/
-        if (!empty($userData['contact'])) {
-            $requestBody['contact'] = $userData['contact'];
-        }
-        /*********** CUSTOM ***********/
-
-        $response = $this->api->users->signup($requestBody);
-
-        // if a user with the same externalId already existed, just update its data
-        if (isset($response->error)) {
-            if ($response->error->code === HyperChat::USER_ALREADY_EXISTS) {
-                $user = $this->getUserByExternalId($requestBody['externalId']);
-
-                $result = $this->updateUser($user->id);
-                $user = $result ? $result : $user;
-            } else {
-                return false;
-            }
-        } else {
-            $user = $response->user;
-        }
-
-        return $user;
-    }
 }

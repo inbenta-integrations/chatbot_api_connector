@@ -785,8 +785,11 @@ class ChatbotConnector
                     return false;
                 }
                 if (method_exists($this->externalClient, "setFullName") && method_exists($this->externalClient, "setEmail") && method_exists($this->externalClient, "setExtraInfo")) {
-                    $this->externalClient->setFullName($escalationFormData->FIRST_NAME . ' ' . $escalationFormData->LAST_NAME);
+                    $this->externalClient->setFullName(trim($escalationFormData->FIRST_NAME . ' ' . $escalationFormData->LAST_NAME));
                     $this->externalClient->setEmail($escalationFormData->EMAIL_ADDRESS);
+                    unset($escalationFormData->EMAIL_ADDRESS);
+                    unset($escalationFormData->FIRST_NAME);
+                    unset($escalationFormData->LAST_NAME);
                     $this->externalClient->setExtraInfo((array) $escalationFormData);
                 }
                 $this->session->delete('escalationOfferYes');
