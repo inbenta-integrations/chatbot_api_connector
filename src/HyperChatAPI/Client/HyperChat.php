@@ -605,7 +605,7 @@ class HyperChat
      * Check if queue mode is active from instance settings
      * @return boolean
      */
-    protected function isQueueModeActive()
+    public function isQueueModeActive()
     {
         $apiConfig = $this->api->settings->getAll();
         if (isset($apiConfig->settings->queue->active)) {

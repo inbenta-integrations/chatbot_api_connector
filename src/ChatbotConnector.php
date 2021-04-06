@@ -295,7 +295,7 @@ class ChatbotConnector
                     }
                     // Because no agents available, reduce the current escalation counter to escalate on next counter update
                     $this->reduceCurrentEscalationCounter();
-                    $this->trackContactEvent("CHAT_UNATTENDED");
+                    $this->trackContactEvent("CHAT_NO_AGENTS");
                 }
             }
         } else {
@@ -378,7 +378,7 @@ class ChatbotConnector
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
                 }
             }
-            $this->trackContactEvent("CHAT_UNATTENDED");
+            $this->trackContactEvent("CHAT_NO_AGENTS");
         }
         $this->session->delete('escalationType');
         $this->session->delete('escalationV2');
@@ -390,8 +390,7 @@ class ChatbotConnector
      */
     protected function checkAgents()
     {
-        $chatConf = $this->conf->get('chat.chat');
-        $queueActive = isset($chatConf['queue']) && isset($chatConf['queue']['active']) && $chatConf['queue']['active'];
+        $queueActive = $this->chatClient->isQueueModeActive();
         return $queueActive ? $this->chatClient->checkAgentsOnline() : $this->chatClient->checkAgentsAvailable();
     }
 
@@ -691,7 +690,7 @@ class ChatbotConnector
 
     /**
      * Function to track CHAT/CONTACT events
-     * @param string $type Contact type: "CHAT_ATTENDED", "CHAT_UNATTENDED"
+     * @param string $type Contact type: "CHAT_ATTENDED", "CHAT_UNATTENDED", "CHAT_NO_AGENTS"
      */
     public function trackContactEvent($type, $chatId = null)
     {
@@ -762,7 +761,7 @@ class ChatbotConnector
             // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
             foreach ($messages as $msg) {
                 $this->updateNoResultsCount($msg);
-                if (isset($msg->actions) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
+                if (isset($msg->actions[0]->parameters->callback) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
                     $data = $msg->actions[0]->parameters->data;
                     $this->session->set('escalationForm', $data);
                     return true;
