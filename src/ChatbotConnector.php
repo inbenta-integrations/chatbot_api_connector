@@ -380,6 +380,7 @@ class ChatbotConnector
             }
             $this->trackContactEvent("CHAT_NO_AGENTS");
         }
+        $this->session->delete('escalationForm');
         $this->session->delete('escalationType');
         $this->session->delete('escalationV2');
     }
