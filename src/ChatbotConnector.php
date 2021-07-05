@@ -8,6 +8,8 @@ use Inbenta\ChatbotConnector\Utils\LanguageManager;
 use Inbenta\ChatbotConnector\Utils\ConfigurationLoader;
 use Inbenta\ChatbotConnector\Utils\EnvironmentDetector;
 use Inbenta\ChatbotConnector\ChatbotAPI\ChatbotAPIClient;
+use Inbenta\ChatbotConnector\MessengerAPI\MessengerAPIClient;
+use Spatie\OpeningHours\OpeningHours;
 
 class ChatbotConnector
 {
@@ -18,6 +20,7 @@ class ChatbotConnector
     protected $botClient;           // Chatbot Client
     protected $digester;            // External requests digester
     protected $chatClient;          // Hyperchat client
+    protected $messengerClient;     // Messenger client
     protected $environment;         // Application environment
 
     const ESCALATION_NO_RESULTS        = '__escalation_type_no_results__';
@@ -278,24 +281,29 @@ class ChatbotConnector
             if ($this->session->get('escalationType') == static::ESCALATION_DIRECT) {
                 $this->sendEscalationStart();
             } else {
-                if ($this->checkAgents()) {
-                    // Ask the user if wants to escalate
-                    $this->session->set('askingForEscalation', true);
-                    $escalationMessage = $this->digester->buildEscalationMessage();
-                    $this->externalClient->sendMessage($escalationMessage);
-                } else {
-                    // Send no-agents-available message if the escalation trigger is an API flag (user asked for having a chat explicitly)
-                    if ($this->session->get('escalationV2', false)) {
-                        $this->setVariableValue("agents_available", "false");
-                        $message = ["directCall" => "escalationStart"];
-                        $botResponse = $this->sendMessageToBot($message);
-                        $this->sendMessagesToExternal($botResponse);
+                if ($this->checkServiceHours()) {
+                    if ($this->checkAgents()) {
+                        // Ask the user if wants to escalate
+                        $this->session->set('askingForEscalation', true);
+                        $escalationMessage = $this->digester->buildEscalationMessage();
+                        $this->externalClient->sendMessage($escalationMessage);
                     } else {
-                        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
+                        // Send no-agents-available message if the escalation trigger is an API flag (user asked for having a chat explicitly)
+                        if ($this->session->get('escalationV2', false)) {
+                            $this->setVariableValue("agents_available", "false");
+                            $message = ["directCall" => "escalationStart"];
+                            $botResponse = $this->sendMessageToBot($message);
+                            $this->sendMessagesToExternal($botResponse);
+                        } else {
+                            $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
+                        }
+                        // Because no agents available, reduce the current escalation counter to escalate on next counter update
+                        $this->reduceCurrentEscalationCounter();
+                        $this->trackContactEvent("CHAT_NO_AGENTS");
                     }
-                    // Because no agents available, reduce the current escalation counter to escalate on next counter update
-                    $this->reduceCurrentEscalationCounter();
-                    $this->trackContactEvent("CHAT_NO_AGENTS");
+                } else {
+                    // throw out of time message
+                    $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('out_of_time')));
                 }
             }
         } else {
@@ -336,49 +344,54 @@ class ChatbotConnector
      */
     protected function escalateToAgent()
     {
-        if ($this->checkAgents()) {
-            // Start chat
-            $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('creating_chat')));
-            $extraInfo = method_exists($this->externalClient, "getExtraInfo") ? $this->externalClient->getExtraInfo() : [];
-            // Build user data for HyperChat API
-            $chatData = array(
-                'roomId' => $this->conf->get('chat.chat.roomId'),
-                'user' => array(
-                    'name'          => $this->externalClient->getFullName(),
-                    'contact'       => $this->externalClient->getEmail(),
-                    'externalId'    => $this->externalClient->getExternalId(),
-                    'extraInfo'     => $extraInfo
-                )
-            );
-            $history = $this->chatbotHistory();
-            if (count($history) > 0) {
-                $chatData['history'] = $history;
-            }
-            $response =  $this->chatClient->openChat($chatData);
-            if (!isset($response->error) && isset($response->chat)) {
-                $this->session->set('chatOnGoing', $response->chat->id);
-                if ($this->session->get('escalationV2', false)) {
-                    $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
+        if ($this->checkServiceHours()) {
+            if ($this->checkAgents()) {
+                // Start chat
+                $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('creating_chat')));
+                $extraInfo = method_exists($this->externalClient, "getExtraInfo") ? $this->externalClient->getExtraInfo() : [];
+                // Build user data for HyperChat API
+                $chatData = array(
+                    'roomId' => $this->conf->get('chat.chat.roomId'),
+                    'user' => array(
+                        'name'          => $this->externalClient->getFullName(),
+                        'contact'       => $this->externalClient->getEmail(),
+                        'externalId'    => $this->externalClient->getExternalId(),
+                        'extraInfo'     => $extraInfo
+                    )
+                );
+                $history = $this->chatbotHistory();
+                if (count($history) > 0) {
+                    $chatData['history'] = $history;
+                }
+                $response =  $this->chatClient->openChat($chatData);
+                if (!isset($response->error) && isset($response->chat)) {
+                    $this->session->set('chatOnGoing', $response->chat->id);
+                    if ($this->session->get('escalationV2', false)) {
+                        $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
+                    } else {
+                        $this->trackContactEvent("CONTACT_ATTENDED");
+                    }
                 } else {
-                    $this->trackContactEvent("CONTACT_ATTENDED");
+                    $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('error_creating_chat')));
                 }
             } else {
-                $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('error_creating_chat')));
+                // Send no-agents-available message if the escalation trigger is an API flag (user asked for having a chat explicitly)
+                if ($this->session->get('escalationType') == static::ESCALATION_API_FLAG || $this->session->get('escalationV2', false)) {
+
+                    if ($this->session->get('escalationV2', false)) {
+                        $this->setVariableValue("agents_available", "false");
+                        $message = ["directCall" => "escalationStart"];
+                        $botResponse = $this->sendMessageToBot($message);
+                        $this->sendMessagesToExternal($botResponse);
+                    } else {
+                        $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
+                    }
+                }
+                $this->trackContactEvent("CHAT_NO_AGENTS");
             }
         } else {
-            // Send no-agents-available message if the escalation trigger is an API flag (user asked for having a chat explicitly)
-            if ($this->session->get('escalationType') == static::ESCALATION_API_FLAG || $this->session->get('escalationV2', false)) {
-
-                if ($this->session->get('escalationV2', false)) {
-                    $this->setVariableValue("agents_available", "false");
-                    $message = ["directCall" => "escalationStart"];
-                    $botResponse = $this->sendMessageToBot($message);
-                    $this->sendMessagesToExternal($botResponse);
-                } else {
-                    $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('no_agents')));
-                }
-            }
-            $this->trackContactEvent("CHAT_NO_AGENTS");
+            // throw out of time message
+            $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('out_of_time')));
         }
         $this->session->delete('escalationForm');
         $this->session->delete('escalationType');
@@ -730,18 +743,23 @@ class ChatbotConnector
      */
     public function sendEscalationStart()
     {
-        if (!method_exists($this->externalClient, "setFullName")) {
-            $this->escalateToAgent();
-        } else {
-            if ($this->checkAgents()) {
-                $this->setVariableValue("agents_available", "true");
+        if ($this->checkServiceHours()) {
+            if (!method_exists($this->externalClient, "setFullName")) {
+                $this->escalateToAgent();
             } else {
-                $this->setVariableValue("agents_available", "false");
-                $this->session->delete('escalationForm');
+                if ($this->checkAgents()) {
+                    $this->setVariableValue("agents_available", "true");
+                } else {
+                    $this->setVariableValue("agents_available", "false");
+                    $this->session->delete('escalationForm');
+                }
+                $message = ["directCall" => "escalationStart"];
+                $botResponse = $this->sendMessageToBot($message);
+                $this->sendMessagesToExternal($botResponse);
             }
-            $message = ["directCall" => "escalationStart"];
-            $botResponse = $this->sendMessageToBot($message);
-            $this->sendMessagesToExternal($botResponse);
+        } else {
+            // throw out of time message
+            $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('out_of_time')));
         }
     }
 
@@ -837,5 +855,93 @@ class ChatbotConnector
             }
         }
         return $history;
+    }
+
+    /**
+     * Check the Agents timetable
+     *
+     * @return boolean
+     */
+    public function checkServiceHours()
+    {
+        if (!$this->conf->get('chat.chat.workTimeTableActive')) return true;
+        date_default_timezone_set($this->conf->get('chat.chat.timezoneWorkingHours'));
+        $openingHours = OpeningHours::create($this->getServiceTimetable());
+        return $openingHours->isOpen();
+    }
+
+    /**
+     * Get the agents timetable from API or config file
+     *
+     * @return Array
+     */
+    public function getServiceTimetable()
+    {
+        $timetable = [];
+        // make a request to API to get timetable from CM
+        $timetable = $this->getWorkTimeTable();
+
+        // Use default settings if extra info data has not been set
+        if (!count($timetable)) {
+            $timetable = $this->conf->get('chat.chat.timetable');
+        }
+        return $timetable;
+    }
+
+    /**
+     * Get time table from Messenger API
+     *
+     * @return Array
+     */
+    public function getWorkTimeTable()
+    {
+        $timetable = [];
+        $response = $this->messengerClient->getWorkTimeTable();
+        if ($response && isset($response['weeks'])) {
+            foreach ($response['weeks'] as $week) {
+                if ($week['queueId'] == $this->conf->get('chat.chat.roomId')) {
+                    $timetable = $this->transformTimeTableHours($week);
+                }
+            }
+        }
+        if ($response && isset($response['holidays'])) {
+            $holidaysHours = [];
+            foreach ($response['holidays'] as $holiday) {
+                if ($holiday['queueId'] == $this->conf->get('chat.chat.roomId')) {
+                    $timetable['exceptions'] = [];
+                    foreach ($holiday['days'] as $value) {
+                        $timetable['exceptions'] += [ date("Y-m-d", strtotime($value)) => [] ];
+                    }
+                }
+            }
+        }
+        return $timetable;
+    }
+
+    /**
+     * Transform the timetable array format
+     *
+     * @return Array
+     */
+    protected function transformTimeTableHours($week)
+    {
+        $weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $timetable = [
+            'monday'     => [],
+            'tuesday'    => [],
+            'wednesday'  => [],
+            'thursday'   => [],
+            'friday'     => [],
+            'saturday'   => [],
+            'sunday'     => [],
+        ];
+        foreach ($weekDays as $keyDay) {
+            if (count($week[$keyDay])) {
+                foreach ($week[$keyDay] as $day) {
+                    array_push($timetable[strtolower($keyDay)], $day['from'] . "-" . $day['to']);
+                }
+            }
+        }
+        return $timetable;
     }
 }
