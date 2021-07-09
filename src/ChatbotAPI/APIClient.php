@@ -97,7 +97,7 @@ class APIClient
         $opts = array(
             CURLOPT_URL => $this->url.$path,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => 30,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_POST => ($method == "POST") ? 1 : 0,
