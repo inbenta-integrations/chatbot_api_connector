@@ -1,10 +1,11 @@
 <?php
 
 namespace Inbenta\ChatbotConnector\MessengerAPI;
+
 use Inbenta\ChatbotConnector\ChatbotAPI\APIClient;
 
 use \Exception;
-use \stdClass;
+//use \stdClass;
 
 class MessengerAPIClient extends APIClient
 {
@@ -63,5 +64,133 @@ class MessengerAPIClient extends APIClient
             return $cachedAppData;
         }
         return false;
+    }
+
+    /**
+     * Get the survey data
+     */
+    public function getSurveyData(string $chatId, $surveyId)
+    {
+        $ticketId = $this->getTicketID($chatId);
+        $surveyData = [];
+        if ($ticketId !== '') {
+            $surveyData = $this->surveyStart($ticketId, $surveyId);
+        }
+        return $surveyData;
+    }
+
+    /**
+     * Get the ticket ID of the last Chat
+     */
+    public function getTicketID(string $chatId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $response = $this->call("/v1/tickets?external_id=" . $chatId, "GET", $headers, []);
+
+        if (isset($response->data[0]->id)) {
+            return $response->data[0]->id;
+        }
+        return '';
+    }
+
+    /**
+     * Start the survey
+     */
+    public function surveyStart($ticketId, $surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "sourceType" => "ticket",
+            "sourceId" => $ticketId
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/start", "POST", $headers, $params);
+        if (!isset($response->error)) {
+            return $response;
+        }
+        return [];
+    }
+
+    /**
+     * Sends the responses of the survey
+     */
+    public function surveySubmit($answers, $token, $surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "field_answers" => $answers,
+            "token" => $token
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/submit", "POST", $headers, $params);
+        if (isset($response->errors[0]->message)) {
+            return $response->errors[0]->message;
+        }
+        return $response;
+    }
+
+    /**
+     * Get user by a given value
+     * @param string $var
+     * @param string $value
+     */
+    public function getUserByParam(string $var, string $value)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+
+        $response = $this->call("/v1/users?" . $var . "=" . $value, "GET", $headers, []);
+        return $response;
+    }
+
+    /**
+     * Updates the Messenger User info
+     */
+    public function updatesUserInfo($idUser, $params)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/users/" . $idUser, "PUT", $headers, $params);
+        if (!isset($response->error)) {
+            return $response;
+        }
+        return [];
     }
 }

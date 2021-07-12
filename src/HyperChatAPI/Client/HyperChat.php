@@ -12,10 +12,11 @@ class HyperChat
     protected $config;
     protected $api;
     protected $extService;
+    protected $messengerClient;
 
     private $eventHandlers = array();
 
-    public function __construct(array $config, ExternalService $extService = null)
+    public function __construct(array $config, ExternalService $extService = null, $session = null, $messengerClient = null)
     {
         $this->config = new Config($config);
 
@@ -32,6 +33,12 @@ class HyperChat
 
         if (!is_null($extService)) {
             $this->extService = $extService;
+        }
+        if (!is_null($session)) {
+            $this->session = $session;
+        }
+        if (!is_null($messengerClient)) {
+            $this->messengerClient = $messengerClient;
         }
     }
 
@@ -139,6 +146,10 @@ class HyperChat
                             $attended,
                             !$isSystem ? $user : null
                         );
+
+                        if (isset($chat->id)) {
+                            $this->hasSurvey($chat->id);
+                        }
                     }
 
                     break;
@@ -196,6 +207,10 @@ class HyperChat
                     $attended = false;
                     $this->extService->notifyChatClose($chat, $targetUser, $system, $attended);
 
+                    if (isset($chat->id)) {
+                        $this->hasSurvey($chat->id);
+                    }
+
                     break;
 
                 case 'queues:update':
@@ -203,7 +218,10 @@ class HyperChat
                     if (!$chat || $chat->source !== $this->config->get('source')) {
                         return;
                     }
-                    $user = $this->getUserInfo($eventData['userId']);
+                    $user = null;
+                    if (isset($eventData['userId'])) {
+                        $user = $this->getUserInfo($eventData['userId']);
+                    }
                     $data = $eventData['data'];
                     $this->extService->notifyQueueUpdate($chat, $user, $data);
             }
@@ -360,7 +378,7 @@ class HyperChat
             return (object) ['error' => 'Chat does not exist, `openChat` first.'];
         }
         $response = $this->api->chats->close($chat->id, array(
-            'secret' => APP_SECRET,
+            'secret' => $this->config->get('secret'),
             'userId' => $user->id
         ));
         if (isset($response->error)) {
@@ -612,5 +630,22 @@ class HyperChat
             return $apiConfig->settings->queue->active;
         }
         return false;
+    }
+
+    /**
+     * Validate if there is a survey, when Escalation ends
+     */
+    protected function hasSurvey($chatId)
+    {
+        if (!is_null($this->session) && !is_null($this->messengerClient)) {
+            $surveyConfig = $this->config->get('survey');
+            if (isset($surveyConfig['active']) && isset($surveyConfig['id']) && $surveyConfig['active'] && $surveyConfig['id'] > 0) {
+                //With the ticket of the recently closed chat, gets the ticket ID and then the survey
+                $surveyElements = $this->messengerClient->getSurveyData($chatId, $surveyConfig['id']);
+                if (isset($surveyElements->response->id)) {
+                    $this->session->set('surveyElements', $surveyElements);
+                }
+            }
+        }
     }
 }

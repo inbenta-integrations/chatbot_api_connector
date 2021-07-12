@@ -6,8 +6,9 @@ use Inbenta\ChatbotConnector\HyperChatAPI\Client\Client as DefaultHyperchatClien
 
 abstract class HyperChatClient extends HyperChat
 {
+    protected $session;
 
-    function __construct($config, $lang, $session, $appConf, $externalClient)
+    function __construct($config, $lang, $session, $appConf, $externalClient, $messengerClient = null)
     {
 
         //If external client hasn't been initialized, make a new instance
@@ -28,8 +29,9 @@ abstract class HyperChatClient extends HyperChat
             $externalClient = $this->instanceExternalClient($externalId, $appConf);
 
         }
+        $this->session = $session;
         $externalService = new ChatExternalService($externalClient, $lang, $session);
-        parent::__construct($config, $externalService);
+        parent::__construct($config, $externalService, $messengerClient);
     }
 
     //Instances an external client
@@ -51,7 +53,13 @@ abstract class HyperChatClient extends HyperChat
             }
             // Process handshake or standard events
             $this->handleEvent();
-            die();
+            
+            if (isset($this->session) && !is_null($this->session->get('surveyElements')) && ($request['trigger'] === 'chats:close' || $request['trigger'] === 'forever:alone')) {
+                //Continue in the connector to ask for acceptance of the survey
+                $this->session->set('surveyConfirm', true);
+            } else {
+                die();
+            }
         }
     }
 

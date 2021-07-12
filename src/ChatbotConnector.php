@@ -100,7 +100,9 @@ class ChatbotConnector
      */
     protected function handleNonBotActions($digestedRequest)
     {
-        // If there is a active chat, send messages to the agent
+        //Check if a survey is running
+        $this->handleSurvey($digestedRequest);
+        // If there is an active chat, send messages to the agent
         if ($this->chatOnGoing()) {
             $this->sendMessagesToChat($digestedRequest);
             die();
@@ -110,7 +112,7 @@ class ChatbotConnector
             $this->handleEscalation($digestedRequest);
         }
         // If the user clicked in a Federated Bot option, handle its request
-        if (count($digestedRequest) && isset($digestedRequest[0]['extendedContentAnswer'])) {
+        if (is_array($digestedRequest) && isset($digestedRequest[0]['extendedContentAnswer'])) {
             $selectedAnswer = json_decode(json_encode($digestedRequest[0]['extendedContentAnswer']));
             $answers = $this->session->get('federatedSubanswers');
             if (is_int($selectedAnswer) && is_array($answers) && isset($answers[$selectedAnswer])) {
@@ -545,15 +547,14 @@ class ChatbotConnector
         foreach ($messages as $msg) {
             $isAnswer            = isset($msg->type) && $msg->type == 'answer';
             $hasEscalationCallBack = isset($msg->actions) ? $msg->actions[0]->parameters->callback == "escalationStart" : false;
-            $hasEscalationCallBack2 = isset($msg->attributes) ? (isset($msg->attributes->DIRECT_CALL) ? $msg->attributes->DIRECT_CALL == "escalationOffer" : false) : false;
+            $hasEscalationCallBack2 = isset($msg->attributes->DIRECT_CALL) ? $msg->attributes->DIRECT_CALL == "escalationOffer" : false;
+            $hasEscalationRedirect = isset($msg->attributes->DYNAMIC_REDIRECT) ? $msg->attributes->DYNAMIC_REDIRECT == "escalationOffer" : false;
             $hasEscalationFlag   = isset($msg->flags) && in_array('escalate', $msg->flags);
             $hasNoRatingsFlag    = isset($msg->flags) && in_array('no-rating', $msg->flags);
-            $hasRatingCode       = isset($msg->parameters) &&
-                isset($msg->parameters->contents) &&
-                isset($msg->parameters->contents->trackingCode) &&
-                isset($msg->parameters->contents->trackingCode->rateCode);
+            $hasRatingCode       = isset($msg->parameters->contents->trackingCode->rateCode);
 
-            if ($isAnswer && $hasRatingCode && !$hasEscalationFlag && !$hasNoRatingsFlag && !$hasEscalationCallBack && !$hasEscalationCallBack2) {
+            if ($isAnswer && $hasRatingCode && !$hasEscalationFlag && !$hasNoRatingsFlag 
+                && !$hasEscalationCallBack && !$hasEscalationCallBack2 && !$hasEscalationRedirect) {
                 $rateCode = $msg->parameters->contents->trackingCode->rateCode;
             }
         }
@@ -641,8 +642,7 @@ class ChatbotConnector
      */
     protected function handleCommands($message)
     {
-        // Only in development and preproduction environments
-        if (isset($message['message']) && $this->environment !== EnvironmentDetector::PRODUCTION_ENV) {
+        if (isset($message['message'])) {
             switch ($message['message']) {
                 case 'clear_cached_appdata':
                     $removed = unlink($this->botClient->appDataCacheFile);
@@ -896,7 +896,7 @@ class ChatbotConnector
     public function getWorkTimeTable()
     {
         $timetable = [];
-        $response = $this->messengerClient->getWorkTimeTable();
+        $response = !is_null($this->messengerClient) ? $this->messengerClient->getWorkTimeTable() : null;
         if ($response && isset($response['weeks'])) {
             foreach ($response['weeks'] as $week) {
                 if ($week['queueId'] == $this->conf->get('chat.chat.roomId')) {
@@ -905,7 +905,6 @@ class ChatbotConnector
             }
         }
         if ($response && isset($response['holidays'])) {
-            $holidaysHours = [];
             foreach ($response['holidays'] as $holiday) {
                 if ($holiday['queueId'] == $this->conf->get('chat.chat.roomId')) {
                     $timetable['exceptions'] = [];
@@ -943,5 +942,135 @@ class ChatbotConnector
             }
         }
         return $timetable;
+    }
+
+    /**
+     * Handle the data for the survey
+     */
+    protected function handleSurvey($userAnswer)
+    {
+        if (method_exists($this->digester, "nextSurveyQuestion")) {
+            $message = isset($userAnswer[0]['message']) ? $userAnswer[0]['message'] : '';
+            $surveyElements = $this->session->get('surveyElements');
+            if (!is_null($surveyElements) && $this->session->get('surveyLaunch', false)) {
+                $nextQuestion = $this->digester->nextSurveyQuestion($surveyElements, $message);
+                foreach ($nextQuestion as $question) {
+                    if ($question === '__MAKE_SUBMIT__' || $question === '__END_SURVEY__') {
+                        $surveyElements = $this->session->get('surveyElements');
+                        $this->deleteSurveySession();
+                        if ($question === '__MAKE_SUBMIT__') {
+                            $this->sendMessagesToExternal($this->buildTextMessage($surveyElements['thanksMessage']));
+                            $this->sendSurvey($surveyElements);
+                        }
+                        break;
+                    } if ($question === '__SURVEY_NOT_ACCEPTED__') {
+                        $this->deleteSurveySession();
+                    } else {
+                        if (is_array($question)) $this->externalClient->sendMessage($question);
+                        else $this->sendMessagesToExternal($this->buildTextMessage($question));
+                    }
+                }
+                die;
+            }
+        }
+    }
+
+    /**
+     * Delete the survey related sessions
+     */
+    protected function deleteSurveySession()
+    {
+        $this->session->delete('surveyLaunch');
+        $this->session->delete('surveyConfirm');
+        $this->session->delete('surveyElements');
+        $this->session->delete('surveyExpectedValues');
+        $this->session->delete('surveyExpectedLabels');
+        $this->session->delete('surveyWrongAnswers');
+        $this->session->delete('surveyPendingElement');
+        $this->session->delete('surveyAskForContinue');
+    }
+
+    /**
+     * Send the survey
+     */
+    protected function sendSurvey($surveyElements)
+    {
+        $config = $this->conf->get('chat.chat');
+        $surveyId = isset($config['survey']['id']) ? $config['survey']['id'] : 0;
+        if ($surveyId > 0) {
+            $token = $surveyElements['token'];
+            $answers = [];
+            foreach ($surveyElements['questions'] as $question) {
+                if (isset($question['response']) && $question['response'] !== '') {
+                    $answers[$question['id']] = $question['response'];
+                }
+            }
+            $response = $this->messengerClient->surveySubmit($answers, $token, $surveyId);
+        }
+    }
+
+    /**
+     * Check if there is a pending confirmation for start a survey
+     */
+    public function validateIfAskForSurvey()
+    {
+        if (!is_null($this->session->get('surveyElements')) && method_exists($this->digester, "askForSurvey")) {      
+            $this->externalClient->setSenderFromId($this->session->get('externalId'));
+            $this->processSurveyData($this->session->get('surveyElements'));
+            $this->externalClient->sendMessage($this->digester->askForSurvey());
+        } else {
+            $this->session->delete('surveyConfirm');
+        }
+        die;
+    }
+
+    /**
+     * Get the survey data and store in a session
+     */
+    protected function processSurveyData($surveyData)
+    {
+        $surveyElements = [];
+        if (isset($surveyData->response)) {
+            $surveyData->data = $surveyData->response;
+        }
+        if (!isset($surveyData->error) && isset($surveyData->data->token) && isset($surveyData->data->pages)) {
+            $surveyElements = [
+                'token' => '',
+                'thanksMessage' => '',
+                'navigatePage' => [],
+                'surveyAccepted' => false,
+                'questions' => []
+            ];
+            $surveyElements['token'] = $surveyData->data->token;
+            $surveyElements['thanksMessage'] = $this->lang->translate('thanks');
+            foreach ($surveyData->data->settings as $setting) {
+                if ($setting->subtype === 'thankyoupage') {
+                    $surveyElements['thanksMessage'] = $setting->value->message;
+                } else if ($setting->subtype === 'navigatepage') {
+                    $surveyElements['navigatePage'] = $setting->value;
+                }
+            }
+
+            foreach ($surveyData->data->pages as $page) {
+                foreach ($page->items as $item) {
+                    // Ignore page header
+                    if ($item->subtype === 'header') {
+                        continue;
+                    }
+                    $surveyElements['questions'][] = [
+                        'id' => $item->id,
+                        'page' => $page->id,
+                        'type' => $item->type,
+                        'subtype' => $item->subtype,
+                        'settings' => $item->settings,
+                        'response' => '',
+                        'answered' => false
+                    ];
+                }
+            }
+            $this->session->set('surveyElements', $surveyElements);
+        } else {
+            $this->session->delete('surveyElements');
+        }
     }
 }
