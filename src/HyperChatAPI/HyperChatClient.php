@@ -31,7 +31,7 @@ abstract class HyperChatClient extends HyperChat
         }
         $this->session = $session;
         $externalService = new ChatExternalService($externalClient, $lang, $session);
-        parent::__construct($config, $externalService, $messengerClient);
+        parent::__construct($config, $externalService, $session, $messengerClient);
     }
 
     //Instances an external client

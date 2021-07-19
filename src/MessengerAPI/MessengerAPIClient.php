@@ -5,7 +5,6 @@ namespace Inbenta\ChatbotConnector\MessengerAPI;
 use Inbenta\ChatbotConnector\ChatbotAPI\APIClient;
 
 use \Exception;
-//use \stdClass;
 
 class MessengerAPIClient extends APIClient
 {
