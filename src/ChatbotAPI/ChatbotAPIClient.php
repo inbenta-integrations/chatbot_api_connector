@@ -221,6 +221,78 @@ class ChatbotAPIClient extends APIClient
     }
 
     /**
+     * Set multiple variables
+     */
+    public function setMultipleVariables($variables)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+
+        // Prepare the message
+        $string = json_encode(['variables' => $variables]);
+        $params = array("payload" => $string);
+
+        // Headers
+        $headers = array(
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken,
+            "Content-Type: application/json,charset=UTF-8",
+            "Content-Length: " . strlen($string)
+        );
+
+        $response = $this->call("/v1/conversation/variables/multiple", "POST", $headers, $params);
+
+        if (isset($response->errors)) {
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
+        } else {
+            return $response;
+        }
+    }
+
+    /**
+     * Get all the available variables of the conversation
+     */
+    public function getVariables()
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+
+        // Headers
+        $headers = array(
+            "x-inbenta-key:" . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $response = $this->call("/v1/conversation/variables", "GET", $headers, []);
+
+        if (isset($response->errors)) {
+            throw new Exception($response->errors[0]->message, $response->errors[0]->code);
+        } else {
+            return $response;
+        }
+    }
+
+    /**
+     * Gets a single variable
+     * @param string $name
+     */
+    public function getVariable(string $name)
+    {
+        $response = $this->getVariables();
+        if (isset($response->{strtolower($name)})) {
+            return $response->{strtolower($name)}->value;
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Get the history of the chat
      */
     public function getChatHistory()

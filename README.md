@@ -15,7 +15,6 @@ Currently, the features provided by this application are:
 * Content ratings (yes/no + comment)
 * Escalate to HyperChat after a number of no-results answers
 * Escalate to HyperChat after a number of negative content ratings
-* Escalate to HyperChat when matching with an 'Escalation FAQ'
 * Send information to webhook through forms
 
 Note that some components of this application must be extended and implemented because a specific implementation is needed for the target external service.

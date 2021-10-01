@@ -104,6 +104,7 @@ class ChatbotConnector
         $this->handleSurvey($digestedRequest);
         // If there is an active chat, send messages to the agent
         if ($this->chatOnGoing()) {
+            $this->validateIsInHyperchatQueue($digestedRequest);
             $this->sendMessagesToChat($digestedRequest);
             die();
         }
@@ -199,8 +200,8 @@ class ChatbotConnector
             $apiEscalateFlag                     = isset($msg->flags) && in_array('escalate', $msg->flags);
             $noResultsToEscalateReached          = $this->shouldEscalateFromNoResults();
             $negativeRatingsToEscalateReached    = $this->shouldEscalateFromNegativeRating();
-            $apiEscalateDirect = isset($msg->actions) ? $msg->actions[0]->parameters->callback == "escalationStart" : false;
-            $apiEscalateOffer = isset($msg->attributes) ? (isset($msg->attributes->DIRECT_CALL) ? $msg->attributes->DIRECT_CALL == "escalationOffer" : false) : false;
+            $apiEscalateDirect = isset($msg->actions[0]->parameters->callback) ? $msg->actions[0]->parameters->callback == "escalationStart" : false;
+            $apiEscalateOffer = isset($msg->attributes->DIRECT_CALL) ? $msg->attributes->DIRECT_CALL == "escalationOffer" : false;
 
             if ($apiEscalateFlag || $noResultsToEscalateReached || $negativeRatingsToEscalateReached || $apiEscalateDirect || $apiEscalateOffer) {
                 // Store into session the escalation type
@@ -315,7 +316,7 @@ class ChatbotConnector
             $this->session->set('noResultsCount', 0);
             $this->session->set('negativeRatingCount', 0);
 
-            if (count($userAnswer) && isset($userAnswer[0]['escalateOption'])) {
+            if (isset($userAnswer[0]['escalateOption'])) {
                 if ($userAnswer[0]['escalateOption']) {
                     if ($this->session->get('escalationType') == static::ESCALATION_OFFER) {
                         $this->session->set('escalationOfferYes', true);
@@ -553,8 +554,10 @@ class ChatbotConnector
             $hasNoRatingsFlag    = isset($msg->flags) && in_array('no-rating', $msg->flags);
             $hasRatingCode       = isset($msg->parameters->contents->trackingCode->rateCode);
 
-            if ($isAnswer && $hasRatingCode && !$hasEscalationFlag && !$hasNoRatingsFlag 
-                && !$hasEscalationCallBack && !$hasEscalationCallBack2 && !$hasEscalationRedirect) {
+            if (
+                $isAnswer && $hasRatingCode && !$hasEscalationFlag && !$hasNoRatingsFlag
+                && !$hasEscalationCallBack && !$hasEscalationCallBack2 && !$hasEscalationRedirect
+            ) {
                 $rateCode = $msg->parameters->contents->trackingCode->rateCode;
             }
         }
@@ -645,7 +648,7 @@ class ChatbotConnector
         if (isset($message['message'])) {
             switch ($message['message']) {
                 case 'clear_cached_appdata':
-                    $removed = unlink($this->botClient->appDataCacheFile);
+                    $removed = @unlink($this->botClient->appDataCacheFile);
                     $this->sendMessagesToExternal($this->buildTextMessage('Clear cached AppData response: "' . $removed . '"'));
                     die();
                     break;
@@ -845,7 +848,7 @@ class ChatbotConnector
         $historyTmp = $this->botClient->getChatHistory();
         if (is_array($historyTmp) && count($historyTmp) > 0) {
             foreach ($historyTmp as $val) {
-                if (trim($val->message) !== "") {
+                if (isset($val->message) && trim($val->message) !== "") {
                     $history[] = [
                         'sender' => $val->user === 'bot' ? 'assistant' : $val->user,
                         'message' => $val->message,
@@ -909,7 +912,7 @@ class ChatbotConnector
                 if ($holiday['queueId'] == $this->conf->get('chat.chat.roomId')) {
                     $timetable['exceptions'] = [];
                     foreach ($holiday['days'] as $value) {
-                        $timetable['exceptions'] += [ date("Y-m-d", strtotime($value)) => [] ];
+                        $timetable['exceptions'] += [date("Y-m-d", strtotime($value)) => []];
                     }
                 }
             }
@@ -963,7 +966,8 @@ class ChatbotConnector
                             $this->sendSurvey($surveyElements);
                         }
                         break;
-                    } if ($question === '__SURVEY_NOT_ACCEPTED__') {
+                    }
+                    if ($question === '__SURVEY_NOT_ACCEPTED__') {
                         $this->deleteSurveySession();
                     } else {
                         if (is_array($question)) $this->externalClient->sendMessage($question);
@@ -1014,7 +1018,7 @@ class ChatbotConnector
      */
     public function validateIfAskForSurvey()
     {
-        if (!is_null($this->session->get('surveyElements')) && method_exists($this->digester, "askForSurvey")) {      
+        if (!is_null($this->session->get('surveyElements')) && method_exists($this->digester, "askForSurvey")) {
             $this->externalClient->setSenderFromId($this->session->get('externalId'));
             $this->processSurveyData($this->session->get('surveyElements'));
             $this->externalClient->sendMessage($this->digester->askForSurvey());
@@ -1072,5 +1076,63 @@ class ChatbotConnector
         } else {
             $this->session->delete('surveyElements');
         }
+    }
+
+    /**
+     * Validate if user is in a waiting queue. If user type the command to exit the queue, then the chat is closed
+     * If user is not in "waiting" but is in "active" then a session with the ID of the chat is created in true,
+     * in order to prevent to check the status of the chat on every message from user
+     */
+    protected function validateIsInHyperchatQueue($digestedRequest)
+    {
+        $chat = $this->session->get('chatOnGoing');
+        if ($chat && !$this->session->get('chatActive_' . $chat, false)) {
+            $chatInfo = $this->chatClient->getChatInformation($chat);
+            if (isset($chatInfo->inQueue) && isset($chatInfo->status) && $chatInfo->status == 'waiting' && $chatInfo->inQueue == 1) {
+                if (!$this->exitQueueCommandExecuted($digestedRequest, $chatInfo)) {
+                    $messageQueue = $this->lang->translate('on_waiting_queue');
+                    if ($this->session->get('exitQueueCommand', '') !== '')
+                        $messageQueue .= ' ' . $this->lang->translate('on_waiting_queue_exit', ['exitCommand' => $this->session->get('exitQueueCommand')]);
+                    $this->externalClient->sendTextMessage($messageQueue);
+                }
+            } else if ($chatInfo->status == 'active') {
+                $this->session->set('chatActive_' . $chat, true);
+            }
+        }
+    }
+
+    /**
+     * Check if the exit queue command was executed
+     * @param array $digestedRequest
+     * @param object $chatInfo
+     */
+    protected function exitQueueCommandExecuted(array $digestedRequest, object $chatInfo)
+    {
+        if (
+            isset($digestedRequest[0]['message']) &&
+            $this->session->get('exitQueueCommand', '') !== '' &&
+            strtolower($digestedRequest[0]['message']) == strtolower($this->session->get('exitQueueCommand'))
+        ) {
+            $user = $this->chatClient->getUserInformation($chatInfo->creator);
+            $name = isset($user->name) ? $user->name : (method_exists($this->externalClient, "getFullName") ? $this->externalClient->getFullName() : '');
+            $contact = isset($user->contact) ? $user->contact : (method_exists($this->externalClient, "getEmail") ? $this->externalClient->getEmail() : '');
+            $externalId = isset($user->externalId) ? $user->externalId : $this->externalClient->getExternalId();
+            $extraInfo = isset($user->extraInfo) ? (array) $user->extraInfo : (method_exists($this->externalClient, "getExtraInfo") ? $this->externalClient->getExtraInfo() : []);
+
+            $chatData = [
+                'roomId' => $this->conf->get('chat.chat.roomId'),
+                'user' => [
+                    'name' => $name,
+                    'contact' => $contact,
+                    'externalId' => $externalId,
+                    'extraInfo' => $extraInfo
+                ]
+            ];
+            $this->chatClient->closeChat($chatData);
+            $this->externalClient->sendTextMessage($this->lang->translate('chat_closed'));
+            $this->session->set('chatOnGoing', false);
+            die;
+        }
+        return false;
     }
 }
