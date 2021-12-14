@@ -135,14 +135,18 @@ class ChatbotAPIClient extends APIClient
     public function getExtraInfo($data_id, $name = '')
     {
         // Get data from cache if it's empty or if the required value is not found
-        if (!is_object($this->appData) || !isset($this->appData->$data_id)) {
+        if (!is_object($this->appData) || !isset($this->appData->$data_id) || ($name !== '' && !isset($this->appData->$data_id->$name))) {
             $this->getExtraInfoFromCache($data_id, $name);
         }
         // Get data from API if cached-data is still empty or if the required value is still not found
-        if (!is_object($this->appData) || !isset($this->appData->$data_id)) {
+        if (!is_object($this->appData) || !isset($this->appData->$data_id) || ($name !== '' && !isset($this->appData->$data_id->$name))) {
             $this->getExtraInfoFromAPI($data_id, $name);
         }
-        return isset($this->appData->$data_id) ? $this->appData->$data_id : null;
+        if ($name !== '') {
+            return isset($this->appData->$data_id->$name) ? $this->appData->$data_id->$name : null;
+        }else{
+            return isset($this->appData->$data_id) ? $this->appData->$data_id : null;
+        }
     }
 
     /**
@@ -154,7 +158,11 @@ class ChatbotAPIClient extends APIClient
         $cachedAppData      = file_exists($this->appDataCacheFile) ? json_decode(file_get_contents($this->appDataCacheFile)) : null;
         $cachedDataSeconds  = file_exists($this->appDataCacheFile) ? time() - filemtime($this->appDataCacheFile) : null;
         if (is_object($cachedAppData) && !empty($cachedAppData) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
-            $this->appData = $cachedAppData;
+            if ($name !== '') {
+                $this->appData->$data_id->$name = $cachedAppData;
+            }else{
+                $this->appData->$data_id = $cachedAppData;
+            }
         }
     }
 
@@ -170,7 +178,11 @@ class ChatbotAPIClient extends APIClient
         if (isset($response->errors)) {
             throw new Exception($response->errors[0]->message, $response->errors[0]->code);
         }
-        $this->appData->$data_id = $response;
+        if ($name !== '') {
+            $this->appData->$data_id->$name = $response;
+        }else{
+            $this->appData->$data_id = $response;
+        }
         // Store data in cache
         file_put_contents($this->appDataCacheFile, json_encode($this->appData));
     }
