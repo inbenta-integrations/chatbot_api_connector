@@ -103,13 +103,7 @@ class HyperChat
                     if (!empty($sender->providerId)) {
                         $targetUser = $this->getUserInfo($chat->creator);
 
-                        if ($messageData['type'] === 'media') {
-                            $fullUrl = $this->getContentUrl($messageData['message']['url']);
-                            $messageData['message']['fullUrl'] = $fullUrl;
-                            $messageData['message']['contentBase64'] =
-                                'data:' . $messageData['message']['type'] . ';base64,' .
-                                base64_encode(file_get_contents($fullUrl));
-                        }
+                        $messageData = $this->processMessage($messageData);
 
                         // send message
                         $this->extService->sendMessageFromAgent(
@@ -144,7 +138,8 @@ class HyperChat
                             $targetUser,
                             $isSystem,
                             $attended,
-                            !$isSystem ? $user : null
+                            !$isSystem ? $user : null,
+                            $eventData
                         );
 
                         if (isset($chat->id)) {
@@ -205,7 +200,7 @@ class HyperChat
 
                     $system = true;
                     $attended = false;
-                    $this->extService->notifyChatClose($chat, $targetUser, $system, $attended);
+                    $this->extService->notifyChatClose($chat, $targetUser, $system, $attended, null, $eventData);
 
                     if (isset($chat->id)) {
                         $this->hasSurvey($chat->id);
@@ -647,5 +642,100 @@ class HyperChat
                 }
             }
         }
+    }
+
+    /**
+     * Process the agent message
+     * @param array $messageData
+     * @return array $messageData
+     */
+    protected function processMessage(array $messageData): array
+    {
+        if ($messageData['type'] === 'text' && strpos($messageData['message'], '<') !== false) {
+            $messageData['message'] = strip_tags($messageData['message'], '<img><a>');
+            $messageData['message'] = str_replace('&nbsp;', ' ', $messageData['message']);
+            $messageProcessed = false;
+            if (strpos($messageData['message'], '<img') !== false) {
+                $messageData = $this->hasImageInText($messageData, $messageProcessed);
+            }
+            if (!$messageProcessed) {
+                $messageData['message'] = strip_tags($messageData['message'], '<a>');
+            }
+        } else if ($messageData['type'] === 'media') {
+            $messageData = $this->hasMedia($messageData);
+        }
+        return $messageData;
+    }
+
+    /**
+     * Check if inside text message exists an image
+     * @param array $messageData
+     * @param bool &$messageProcessed
+     * @return array $messageData
+     */
+    protected function hasImageInText(array $messageData, bool &$messageProcessed): array
+    {
+        $url = $this->imageUrlFromText($messageData['message']);
+        if ($url === '') return $messageData;
+
+        $messageData['message'] = trim(strip_tags($messageData['message']));
+        if ($messageData['message'] !== '') {
+            $this->extService->sendMessageFromAgent([], [], [], $messageData, '');
+            $messageProcessed = true;
+        }
+
+        $mimeType = $this->validateImageType($url);
+        if ($mimeType !== '') {
+            $messageData['type'] = 'media';
+            $messageData['message'] = [
+                'fullUrl' => $url,
+                'type' => $mimeType
+            ];
+            $messageProcessed = true;
+        }
+        return $messageData;
+    }
+
+    /**
+     * Gets the image url in text
+     * @param string $text
+     * @param string
+     */
+    protected function imageUrlFromText(string $text): string
+    {
+        $posStart = strpos($text, 'src="');
+        $posEnd = strpos($text, '"', $posStart + 5);
+        $url = substr($text, $posStart + 5, ($posEnd - $posStart - 5));
+
+        if ($url === '' || strpos($url, 'base64,') > 0) return '';
+        return $url;
+    }
+
+    /**
+     * Validate the given url has a correct mime type
+     * @param string $url
+     * @return string
+     */
+    protected function validateImageType(string $url): string
+    {
+        $fileInfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $fileInfo->buffer(file_get_contents($url));
+        if ($mimeType) return $mimeType;
+        return '';
+    }
+
+    /**
+     * Return the encoded media message
+     * @param array $messageData
+     * @return array $messageData
+     */
+    protected function hasMedia(array $messageData): array
+    {
+        $fullUrl = $this->getContentUrl($messageData['message']['url']);
+        $messageData['message']['fullUrl'] = $fullUrl;
+        $messageData['message']['contentBase64'] =
+            'data:' . $messageData['message']['type'] . ';base64,' .
+            base64_encode(file_get_contents($fullUrl));
+        return $messageData;
     }
 }

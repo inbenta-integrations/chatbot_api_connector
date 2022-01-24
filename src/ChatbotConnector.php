@@ -632,7 +632,15 @@ class ChatbotConnector
                     // Forget we were asking for a rating comment
                     $this->session->set('askingRatingComment', false);
                     // Send 'Thanks' message after rating
-                    return $this->buildTextMessage($this->lang->translate('thanks'));
+                    $textMessage = $this->lang->translate('thanks');
+                    if (isset($event['data']['value'])) {
+                        if ($event['data']['value'] == 1 && $this->lang->translate('rating_positive') !== 'rating_positive') {
+                            $textMessage = $this->lang->translate('rating_positive');
+                        } else if ($event['data']['value'] == 2 && $this->lang->translate('rating_negative') !== 'rating_negative') {
+                            $textMessage = $this->lang->translate('rating_negative');
+                        }
+                    }
+                    return $this->buildTextMessage($textMessage);
                 }
 
                 break;
