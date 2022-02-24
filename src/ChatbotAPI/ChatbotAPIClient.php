@@ -144,7 +144,7 @@ class ChatbotAPIClient extends APIClient
         }
         if ($name !== '') {
             return isset($this->appData->$data_id->$name) ? $this->appData->$data_id->$name : null;
-        }else{
+        } else {
             return isset($this->appData->$data_id) ? $this->appData->$data_id : null;
         }
     }
@@ -160,8 +160,8 @@ class ChatbotAPIClient extends APIClient
         if (is_object($cachedAppData) && !empty($cachedAppData) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
             if ($name !== '') {
                 $this->appData->$data_id->$name = $cachedAppData;
-            }else{
-                $this->appData->$data_id = $cachedAppData;
+            } else {
+                $this->appData->$data_id = isset($cachedAppData->$data_id) ? $cachedAppData->$data_id : $cachedAppData;
             }
         }
     }
@@ -180,7 +180,7 @@ class ChatbotAPIClient extends APIClient
         }
         if ($name !== '') {
             $this->appData->$data_id->$name = $response;
-        }else{
+        } else {
             $this->appData->$data_id = $response;
         }
         // Store data in cache
