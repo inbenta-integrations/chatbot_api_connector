@@ -1159,6 +1159,8 @@ class ChatbotConnector
         }
 
         $formData = $botResponse->answers[0]->actions[0]->parameters->data;
+        $queue = $this->conf->has('chat.chat.queue') ? $this->conf->get('chat.chat.queue') : 1;
+        $formData->QUEUE = $formData->QUEUE ?? $queue;
         $history = $this->chatbotHistory();
 
         $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
