@@ -154,6 +154,8 @@ class ChatbotConnector
             $needContentRating = $hasRating ? $hasRating : $needContentRating;
             // Send the messages received from ChatbotApi back to the external service
             $this->sendMessagesToExternal($botResponse);
+            //Check if response has a callback for ticket creation
+            $this->checkCallbackTicketCreation($botResponse);
         }
         if ($needEscalation || $hasFormData) {
             $this->handleEscalation();
@@ -369,11 +371,7 @@ class ChatbotConnector
                 $response =  $this->chatClient->openChat($chatData);
                 if (!isset($response->error) && isset($response->chat)) {
                     $this->session->set('chatOnGoing', $response->chat->id);
-                    if ($this->session->get('escalationV2', false)) {
-                        $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
-                    } else {
-                        $this->trackContactEvent("CONTACT_ATTENDED");
-                    }
+                    $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
                 } else {
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('error_creating_chat')));
                 }
@@ -781,21 +779,21 @@ class ChatbotConnector
      */
     public function checkEscalationForm($botResponse)
     {
-        if ($this->session->get('escalationV2', false)) {
-            // Parse bot messages
-            if (isset($botResponse->answers) && is_array($botResponse->answers)) {
-                $messages = $botResponse->answers;
-            } else {
-                $messages = array($botResponse);
-            }
-            // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
-            foreach ($messages as $msg) {
-                $this->updateNoResultsCount($msg);
-                if (isset($msg->actions[0]->parameters->callback) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
-                    $data = $msg->actions[0]->parameters->data;
-                    $this->session->set('escalationForm', $data);
-                    return true;
-                }
+        // Parse bot messages
+        if (isset($botResponse->answers) && is_array($botResponse->answers)) {
+            $messages = $botResponse->answers;
+        } else {
+            $messages = array($botResponse);
+        }
+        // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
+        foreach ($messages as $msg) {
+            $this->updateNoResultsCount($msg);
+            if (isset($msg->actions[0]->parameters->callback) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
+                $data = $msg->actions[0]->parameters->data;
+                $this->session->set('escalationForm', $data);
+                $this->session->set('escalationType', static::ESCALATION_DIRECT);
+                $this->session->set('escalationV2', true);
+                return true;
             }
         }
         return false;
@@ -1142,5 +1140,32 @@ class ChatbotConnector
             die;
         }
         return false;
+    }
+
+    /**
+     * Check if bot response has a callback to create a ticket
+     * @param object $botResponse
+     * @param array $chatConfig
+     * @return void
+     */
+    protected function checkCallbackTicketCreation(object $botResponse): void
+    {
+        if (!isset($botResponse->answers[0]->actions[0]->parameters->callback)) return;
+        if ($botResponse->answers[0]->actions[0]->parameters->callback !== "createTicket") return;
+        if (!isset($botResponse->answers[0]->actions[0]->parameters->data)) return;
+        if (is_null($this->messengerClient)) {
+            $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
+            return;
+        }
+
+        $formData = $botResponse->answers[0]->actions[0]->parameters->data;
+        $history = $this->chatbotHistory();
+
+        $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
+        if ($ticket !== "") {
+            $this->externalClient->sendTextMessage($this->lang->translate('ticket_created') . $ticket);
+            return;
+        }
+        $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
     }
 }

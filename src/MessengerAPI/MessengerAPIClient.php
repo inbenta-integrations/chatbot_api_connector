@@ -192,4 +192,113 @@ class MessengerAPIClient extends APIClient
         }
         return [];
     }
+
+    /**
+     * Insert a new Messenger User
+     * @param array $params
+     * @return object
+     */
+    protected function insertUser(array $params): object
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [http_build_query($params)];
+
+        return $this->call("/v1/users", "POST", $headers, $params);
+    }
+
+    /**
+     * Get the user ID, if email exists, otherwise insert a new user
+     * @param string $email
+     * @param string $fullName
+     * @return int
+     */
+    protected function getUserId(string $email, string $fullName): int
+    {
+        $userData = $this->getUserByParam("address", $email);
+
+        if (!isset($userData->data)) return 0;
+
+        if (count($userData->data) > 0) return $userData->data[0]->id;
+
+        $saveData = [
+            "name" => $fullName,
+            "address" => $email
+        ];
+        $userData = $this->insertUser($saveData);
+
+        if (!isset($userData->uuid)) return 0;
+        return $userData->uuid;
+    }
+
+    /**
+     * Creates a new Messenger ticket
+     * @param object $formData
+     * @param array $history
+     * @param int $source
+     * @return string (Ticket UUID or empty on error)
+     */
+    public function createTicket(object $formData, array $history, int $source): string
+    {
+        $firstName = isset($formData->FIRST_NAME) ? $formData->FIRST_NAME : "";
+        $lastName = isset($formData->LAST_NAME) ? $formData->LAST_NAME : "";
+        $fullName = trim($firstName . " " . $lastName);
+        $inquiry = isset($formData->INQUIRY) ? $formData->INQUIRY : "";
+        $queue = isset($formData->QUEUE) ? $formData->QUEUE : 1;
+        $email = isset($formData->EMAIL_ADDRESS) ? $formData->EMAIL_ADDRESS : "";
+
+        if ($email === "") return "";
+
+        $idUser = $this->getUserId($email, $fullName);
+        if ($idUser === 0) return "";
+
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "title" => $inquiry,
+            "creator" => $idUser,
+            "message" => $inquiry,
+            "source" => $source,
+            "queue" => $queue,
+            "autoclassify" => true,
+            "history" => [
+                "messages" => $this->processConversationTranscript($history)
+            ]
+        ];
+        $params = [http_build_query($params)];
+        $ticketInfo = $this->call("/v1/tickets", "POST", $headers, $params);
+
+        if (!isset($ticketInfo->full_uuid)) return "";
+        return $ticketInfo->full_uuid;
+    }
+
+    /**
+     * Process the chat conversation history
+     * @param array $chatHistory
+     * @return array $conversation
+     */
+    protected function processConversationTranscript(array $chatHistory): array
+    {
+        $conversation = [];
+        foreach ($chatHistory as $element) {
+            $message = trim(strip_tags($element["message"], "<br><li><ul><ol><p><a></a><img><iframe>"));
+            if ($message === "") continue;
+
+            $dateTime = gmdate("Y-m-d H:i:s\Z", $element["created"]);
+            $message .= " (<small>" . $dateTime . "</small>)";
+            $conversation[] = [
+                "message" => $message,
+                "user" => $element["sender"]
+            ];
+        }
+        return $conversation;
+    }
 }
