@@ -1144,30 +1144,32 @@ class ChatbotConnector
 
     /**
      * Check if bot response has a callback to create a ticket
-     * @param object $botResponse
-     * @param array $chatConfig
+     * @param object $botResponses
      * @return void
      */
-    protected function checkCallbackTicketCreation(object $botResponse): void
+    protected function checkCallbackTicketCreation(object $botResponses): void
     {
-        if (!isset($botResponse->answers[0]->actions[0]->parameters->callback)) return;
-        if ($botResponse->answers[0]->actions[0]->parameters->callback !== "createTicket") return;
-        if (!isset($botResponse->answers[0]->actions[0]->parameters->data)) return;
-        if (is_null($this->messengerClient)) {
+        foreach ($botResponses->answers as $botResponse) {
+            if (!isset($botResponse->actions[0]->parameters->callback)) continue;
+            if ($botResponse->actions[0]->parameters->callback !== "createTicket") continue;
+            if (!isset($botResponse->actions[0]->parameters->data)) continue;
+
+            if (is_null($this->messengerClient)) {
+                $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
+                return;
+            }
+            $formData = $botResponse->actions[0]->parameters->data;
+            $queue = $this->conf->has('chat.chat.queue') ? $this->conf->get('chat.chat.queue') : 1;
+            $formData->QUEUE = $formData->QUEUE ?? $queue;
+            $history = $this->chatbotHistory();
+
+            $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
+            if ($ticket !== "") {
+                $this->externalClient->sendTextMessage($this->lang->translate('ticket_created') . $ticket);
+                return;
+            }
             $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
             return;
         }
-
-        $formData = $botResponse->answers[0]->actions[0]->parameters->data;
-        $queue = $this->conf->has('chat.chat.queue') ? $this->conf->get('chat.chat.queue') : 1;
-        $formData->QUEUE = $formData->QUEUE ?? $queue;
-        $history = $this->chatbotHistory();
-
-        $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
-        if ($ticket !== "") {
-            $this->externalClient->sendTextMessage($this->lang->translate('ticket_created') . $ticket);
-            return;
-        }
-        $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
     }
 }
