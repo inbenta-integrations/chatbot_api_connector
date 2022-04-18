@@ -1149,6 +1149,7 @@ class ChatbotConnector
      */
     protected function checkCallbackTicketCreation(object $botResponses): void
     {
+        if (!isset($botResponses->answers)) return;
         foreach ($botResponses->answers as $botResponse) {
             if (!isset($botResponse->actions[0]->parameters->callback)) continue;
             if ($botResponse->actions[0]->parameters->callback !== "createTicket") continue;
