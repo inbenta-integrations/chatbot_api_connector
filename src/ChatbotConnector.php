@@ -765,6 +765,9 @@ class ChatbotConnector
                 $message = ["directCall" => "escalationStart"];
                 $botResponse = $this->sendMessageToBot($message);
                 $this->sendMessagesToExternal($botResponse);
+                if ($this->checkEscalationForm($botResponse)) {
+                    $this->escalateIfFormHasBeenDone();
+                }
             }
         } else {
             // throw out of time message
