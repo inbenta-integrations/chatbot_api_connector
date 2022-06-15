@@ -327,4 +327,79 @@ class ChatbotAPIClient extends APIClient
             return $response;
         }
     }
+
+    /**
+     * Get survey url
+     */
+    public function getSurvey($surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $response = $this->call("/v1/surveys/" . $surveyId, "GET", $headers, []);
+        if (isset($response->errors)) {
+            return (object) ['error' => $response->errors[0]->message];
+        }
+        return $response;
+    }
+
+    /**
+     * Start the survey
+     */
+    public function surveyStart($surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/start", "GET", $headers, []);
+        if (isset($response->errors)) {
+            return (object) ['error' => $response->errors[0]->message];
+        }
+        return $response;
+    }
+
+    /**
+     * Sends the responses of the survey
+     */
+    public function surveySubmit($surveyId, $answers, $token)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $params = [
+            "fieldAnswers" => $answers,
+            "token" => $token
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/submit", "POST", $headers, $params);
+        if (isset($response->errors)) {
+            return $response->errors[0]->message;
+        }
+        return $response;
+    }
 }
