@@ -157,7 +157,7 @@ class ChatbotAPIClient extends APIClient
         $this->appData = new stdClass();
         $cachedAppData      = file_exists($this->appDataCacheFile) ? json_decode(file_get_contents($this->appDataCacheFile)) : null;
         $cachedDataSeconds  = file_exists($this->appDataCacheFile) ? time() - filemtime($this->appDataCacheFile) : null;
-        if (is_object($cachedAppData) && !empty($cachedAppData) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
+        if (is_object($cachedAppData) && !empty($cachedAppData) && !empty($cachedAppData->$data_id) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
             if ($name !== '') {
                 $this->appData->$data_id->$name = $cachedAppData;
             } else {
