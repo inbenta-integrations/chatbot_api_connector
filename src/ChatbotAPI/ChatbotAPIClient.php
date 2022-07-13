@@ -184,7 +184,11 @@ class ChatbotAPIClient extends APIClient
             $this->appData->$data_id = $response;
         }
         // Store data in cache
-        file_put_contents($this->appDataCacheFile, json_encode($this->appData));
+        $cachedAppData = file_exists($this->appDataCacheFile) ? json_decode(file_get_contents($this->appDataCacheFile)) : null;
+        $cachedAppData = (is_object($cachedAppData) && !empty($cachedAppData)) ? json_decode(json_encode($cachedAppData), true) : [];
+        $appData = array_merge($cachedAppData, json_decode(json_encode($this->appData), true));
+
+        file_put_contents($this->appDataCacheFile, json_encode($appData));
     }
 
     /**
