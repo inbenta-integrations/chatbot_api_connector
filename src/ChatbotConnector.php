@@ -876,7 +876,9 @@ class ChatbotConnector
      */
     public function checkServiceHours()
     {
-        if (!$this->conf->get('chat.chat.workTimeTableActive')) return true;
+        $chatInfo = $this->conf->get('chat.chat');
+        if (!isset($chatInfo['workTimeTableActive'])) return true;
+        if (!$chatInfo['workTimeTableActive']) return true;
         date_default_timezone_set($this->conf->get('chat.chat.timezoneWorkingHours'));
         $openingHours = OpeningHours::create($this->getServiceTimetable());
         return $openingHours->isOpen();
