@@ -1170,7 +1170,7 @@ class ChatbotConnector
             $history = $this->chatbotHistory();
 
             $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
-            if ($ticket !== "") {
+            if ($ticket > 0) {
                 $this->externalClient->sendTextMessage($this->lang->translate('ticket_created') . $ticket);
                 return;
             }

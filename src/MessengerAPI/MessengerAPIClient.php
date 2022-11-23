@@ -241,9 +241,9 @@ class MessengerAPIClient extends APIClient
      * Creates a new Messenger file
      * @param string $name
      * @param string $content base64
-     * @return string (File UUID or empty on error)
+     * @return int (File UUID or 0 on error)
      */
-    public function createMedia(string $name, string $content): string
+    public function createMedia(string $name, string $content): int
     {
         if ($name === "" || $content === "") return "";
         $headers = [
@@ -257,8 +257,8 @@ class MessengerAPIClient extends APIClient
         $params = [http_build_query($params)];
         $mediaInfo = $this->call("/v1/media", "POST", $headers, $params);
 
-        if (!isset($mediaInfo->full_uuid)) return "";
-        return $mediaInfo->full_uuid;
+        if (!isset($mediaInfo->uuid)) return 0;
+        return $mediaInfo->uuid;
     }
 
     /**
@@ -266,7 +266,7 @@ class MessengerAPIClient extends APIClient
      * @param object $formData
      * @param array $history
      * @param int $source
-     * @return string (Ticket UUID or empty on error)
+     * @return int (Ticket UUID or 0 on error)
      */
     public function createTicket(object $formData, array $history, int $source): string
     {
@@ -300,17 +300,17 @@ class MessengerAPIClient extends APIClient
         $params = [http_build_query($params)];
         $ticketInfo = $this->call("/v1/tickets", "POST", $headers, $params);
 
-        if (!isset($ticketInfo->full_uuid)) return "";
-        return $ticketInfo->full_uuid;
+        if (!isset($ticketInfo->uuid)) return 0;
+        return $ticketInfo->uuid;
     }
 
     /**
      * Updates the Messenger Ticket
-     * @param string $ticketId
+     * @param int    $ticketId
      * @param object $params
      * @return string (Ticket updated successfully)
     */
-    public function updateTicket(string $ticketId, object $params): string
+    public function updateTicket(int $ticketId, object $params): string
     {
         // Update access token if needed
         $this->updateAccessToken();
