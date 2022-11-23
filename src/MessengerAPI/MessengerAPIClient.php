@@ -238,6 +238,30 @@ class MessengerAPIClient extends APIClient
     }
 
     /**
+     * Creates a new Messenger file
+     * @param string $name
+     * @param string $content base64
+     * @return string (File UUID or empty on error)
+     */
+    public function createMedia(string $name, string $content): string
+    {
+        if ($name === "" || $content === "") return "";
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "name" => $name,
+            "content" => $content
+        ];
+        $params = [http_build_query($params)];
+        $mediaInfo = $this->call("/v1/media", "POST", $headers, $params);
+
+        if (!isset($mediaInfo->full_uuid)) return "";
+        return $mediaInfo->full_uuid;
+    }
+
+    /**
      * Creates a new Messenger ticket
      * @param object $formData
      * @param array $history
@@ -278,6 +302,31 @@ class MessengerAPIClient extends APIClient
 
         if (!isset($ticketInfo->full_uuid)) return "";
         return $ticketInfo->full_uuid;
+    }
+
+    /**
+     * Updates the Messenger Ticket
+     * @param string $ticketId
+     * @param object $params
+     * @return string (Ticket updated successfully)
+    */
+    public function updateTicket(string $ticketId, object $params): string
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/tickets/" . $ticketId, "PUT", $headers, $params);
+        if (!isset($response->error)) {
+            return $response;
+        }
+        return $response->message;
     }
 
     /**
