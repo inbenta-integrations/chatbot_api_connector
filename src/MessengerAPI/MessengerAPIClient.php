@@ -266,7 +266,7 @@ class MessengerAPIClient extends APIClient
      * @param object $formData
      * @param array $history
      * @param int $source
-     * @return int (Ticket UUID or 0 on error)
+     * @return string (Ticket UUID or empty on error)
      */
     public function createTicket(object $formData, array $history, int $source): string
     {
@@ -300,8 +300,8 @@ class MessengerAPIClient extends APIClient
         $params = [http_build_query($params)];
         $ticketInfo = $this->call("/v1/tickets", "POST", $headers, $params);
 
-        if (!isset($ticketInfo->uuid)) return 0;
-        return $ticketInfo->uuid;
+        if (!isset($ticketInfo->full_uuid)) return "";
+        return $ticketInfo->full_uuid;
     }
 
     /**
@@ -327,6 +327,49 @@ class MessengerAPIClient extends APIClient
             return $response;
         }
         return $response->message;
+    }
+
+    /**
+     * Add reply to the Messenger Ticket
+     * @param int    $ticketId
+     * @param object $formData
+     * @return int (The id of the reply that was just added to the ticket)
+    */
+    public function addTicketReplies(int $ticketId, object $formData): int
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        $firstName = isset($formData->FIRST_NAME) ? $formData->FIRST_NAME : "";
+        $lastName = isset($formData->LAST_NAME) ? $formData->LAST_NAME : "";
+        $fullName = trim($firstName . " " . $lastName);
+        $email = isset($formData->EMAIL_ADDRESS) ? $formData->EMAIL_ADDRESS : "";
+        $attachments = isset($formData->ATTACHMENTS) ? $formData->ATTACHMENTS : [];
+        $message = isset($formData->MESSAGE) ? $formData->MESSAGE : "";
+
+        if ($email === "") return "";
+
+        $idUser = $this->getUserId($email, $fullName);
+        if ($idUser === 0) return "";
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+
+        $params = [
+            "creator" => $idUser,
+            "message" => $message,
+            "attachments" => $attachments
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/tickets/" . $ticketId . "/replies", "POST", $headers, $params);
+        if (!isset($response->error)) {
+            return $response;
+        }
+        return $response->uuid;
     }
 
     /**

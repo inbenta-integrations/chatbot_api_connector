@@ -33,13 +33,12 @@ class SessionManager
 
     public function add($key, $value)
     {
-        if (!$this->data->has($key)) {
-            $this->data->set($key, $value);
-        } else {
+        $tmp = [];
+        if ($this->data->has($key)) {   
             $tmp = $this->data->get();
-            $tmp[] = $value;
-            $this->data->set($key, $tmp);
         }
+        $tmp[] = $value;
+        $this->data->set($key, $tmp);
         $_SESSION['data'] = $this->data->get();
     }
 
