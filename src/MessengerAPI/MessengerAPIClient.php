@@ -366,9 +366,7 @@ class MessengerAPIClient extends APIClient
         $params = [http_build_query($params)];
 
         $response = $this->call("/v1/tickets/" . $ticketId . "/replies", "POST", $headers, $params);
-        if (!isset($response->error)) {
-            return $response;
-        }
+        if (!isset($response->uuid)) return 0;
         return $response->uuid;
     }
 
