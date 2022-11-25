@@ -34,8 +34,8 @@ class SessionManager
     public function add($key, $value)
     {
         $tmp = [];
-        if ($this->data->has($key)) {   
-            $tmp = $this->data->get();
+        if ($this->data->has($key)) {
+            $tmp = $this->data->get($key);
         }
         $tmp[] = $value;
         $this->data->set($key, $tmp);
