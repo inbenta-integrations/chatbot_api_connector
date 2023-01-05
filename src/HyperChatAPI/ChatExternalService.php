@@ -1,8 +1,7 @@
 <?php
-
 namespace Inbenta\ChatbotConnector\HyperChatAPI;
 
-class ChatExternalService
+class ChatExternalService 
 {
     protected $externalClient;
     protected $lang;
@@ -32,18 +31,10 @@ class ChatExternalService
      * @param  boolean $isSystem    Whether the chat closer is the system or not
      * @param  boolean $isSystem    Whether the chat has been attended or not
      * @param  boolean $closerUser  User that closed the chat (if it's not the system, null instead)
-     * @param  array $eventData     Information of the closed chat
      */
-    public function notifyChatClose($chat, $targetUser, $isSystem, $isAttended, $closerUser = null, $eventData = null)
+    public function notifyChatClose($chat, $targetUser, $isSystem, $isAttended, $closerUser = null)
     {
-        $chatClosedTag = $this->lang->translate('chat_closed');
-        if (
-            isset($eventData['extraData']['reason']) && $eventData['extraData']['reason'] === 'inactivity'
-            && $this->lang->translate('chat_closed_inactivity') !== 'chat_closed_inactivity'
-        ) {
-            $chatClosedTag = $this->lang->translate('chat_closed_inactivity');
-        }
-        $this->externalClient->sendTextMessage($chatClosedTag);
+        $this->externalClient->sendTextMessage($this->lang->translate('chat_closed'));
         $this->session->set('chatOnGoing', false);
     }
 

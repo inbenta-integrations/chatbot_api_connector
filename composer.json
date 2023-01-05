@@ -3,11 +3,11 @@
     "require": {
         "symfony/http-foundation": "~3.4.36",
         "guzzlehttp/guzzle": "~6.3.3",
-        "php": "~7.1",
+        "php": "~7.4",
         "spatie/opening-hours": "^2.7"
     },
-    "autoload":{
-        "psr-4":{
+    "autoload": {
+        "psr-4": {
             "Inbenta\\ChatbotConnector\\": "src/"
         }
     }

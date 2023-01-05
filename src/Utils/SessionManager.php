@@ -31,17 +31,6 @@ class SessionManager
         $_SESSION['data'] = $this->data->get();
     }
 
-    public function add($key, $value)
-    {
-        $tmp = [];
-        if ($this->data->has($key)) {
-            $tmp = $this->data->get($key);
-        }
-        $tmp[] = $value;
-        $this->data->set($key, $tmp);
-        $_SESSION['data'] = $this->data->get();
-    }
-
     public function has($key)
     {
         return $this->data->has($key);
