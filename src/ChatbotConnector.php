@@ -154,6 +154,8 @@ class ChatbotConnector
             $needContentRating = $hasRating ? $hasRating : $needContentRating;
             // Send the messages received from ChatbotApi back to the external service
             $this->sendMessagesToExternal($botResponse);
+            //Check if response has a callback for ticket creation
+            $this->checkCallbackTicketCreation($botResponse);
         }
         if ($needEscalation || $hasFormData) {
             $this->handleEscalation();
@@ -369,11 +371,7 @@ class ChatbotConnector
                 $response =  $this->chatClient->openChat($chatData);
                 if (!isset($response->error) && isset($response->chat)) {
                     $this->session->set('chatOnGoing', $response->chat->id);
-                    if ($this->session->get('escalationV2', false)) {
-                        $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
-                    } else {
-                        $this->trackContactEvent("CONTACT_ATTENDED");
-                    }
+                    $this->trackContactEvent("CHAT_ATTENDED", $response->chat->id);
                 } else {
                     $this->sendMessagesToExternal($this->buildTextMessage($this->lang->translate('error_creating_chat')));
                 }
@@ -632,7 +630,15 @@ class ChatbotConnector
                     // Forget we were asking for a rating comment
                     $this->session->set('askingRatingComment', false);
                     // Send 'Thanks' message after rating
-                    return $this->buildTextMessage($this->lang->translate('thanks'));
+                    $textMessage = $this->lang->translate('thanks');
+                    if (isset($event['data']['value'])) {
+                        if ($event['data']['value'] == 1 && $this->lang->translate('rating_positive') !== 'rating_positive') {
+                            $textMessage = $this->lang->translate('rating_positive');
+                        } else if ($event['data']['value'] == 2 && $this->lang->translate('rating_negative') !== 'rating_negative') {
+                            $textMessage = $this->lang->translate('rating_negative');
+                        }
+                    }
+                    return $this->buildTextMessage($textMessage);
                 }
 
                 break;
@@ -759,6 +765,9 @@ class ChatbotConnector
                 $message = ["directCall" => "escalationStart"];
                 $botResponse = $this->sendMessageToBot($message);
                 $this->sendMessagesToExternal($botResponse);
+                if ($this->checkEscalationForm($botResponse)) {
+                    $this->escalateIfFormHasBeenDone();
+                }
             }
         } else {
             // throw out of time message
@@ -773,21 +782,21 @@ class ChatbotConnector
      */
     public function checkEscalationForm($botResponse)
     {
-        if ($this->session->get('escalationV2', false)) {
-            // Parse bot messages
-            if (isset($botResponse->answers) && is_array($botResponse->answers)) {
-                $messages = $botResponse->answers;
-            } else {
-                $messages = array($botResponse);
-            }
-            // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
-            foreach ($messages as $msg) {
-                $this->updateNoResultsCount($msg);
-                if (isset($msg->actions[0]->parameters->callback) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
-                    $data = $msg->actions[0]->parameters->data;
-                    $this->session->set('escalationForm', $data);
-                    return true;
-                }
+        // Parse bot messages
+        if (isset($botResponse->answers) && is_array($botResponse->answers)) {
+            $messages = $botResponse->answers;
+        } else {
+            $messages = array($botResponse);
+        }
+        // Check if BotApi returned 'escalate' flag on message or triesBeforeEscalation has been reached
+        foreach ($messages as $msg) {
+            $this->updateNoResultsCount($msg);
+            if (isset($msg->actions[0]->parameters->callback) && $msg->actions[0]->parameters->callback == "escalateToAgent") {
+                $data = $msg->actions[0]->parameters->data;
+                $this->session->set('escalationForm', $data);
+                $this->session->set('escalationType', static::ESCALATION_DIRECT);
+                $this->session->set('escalationV2', true);
+                return true;
             }
         }
         return false;
@@ -867,7 +876,9 @@ class ChatbotConnector
      */
     public function checkServiceHours()
     {
-        if (!$this->conf->get('chat.chat.workTimeTableActive')) return true;
+        $chatInfo = $this->conf->get('chat.chat');
+        if (!isset($chatInfo['workTimeTableActive'])) return true;
+        if (!$chatInfo['workTimeTableActive']) return true;
         date_default_timezone_set($this->conf->get('chat.chat.timezoneWorkingHours'));
         $openingHours = OpeningHours::create($this->getServiceTimetable());
         return $openingHours->isOpen();
@@ -1134,5 +1145,37 @@ class ChatbotConnector
             die;
         }
         return false;
+    }
+
+    /**
+     * Check if bot response has a callback to create a ticket
+     * @param object $botResponses
+     * @return void
+     */
+    protected function checkCallbackTicketCreation(object $botResponses): void
+    {
+        if (!isset($botResponses->answers) || !is_iterable($botResponses->answers)) return;
+        foreach ($botResponses->answers as $botResponse) {
+            if (!isset($botResponse->actions[0]->parameters->callback)) continue;
+            if ($botResponse->actions[0]->parameters->callback !== "createTicket") continue;
+            if (!isset($botResponse->actions[0]->parameters->data)) continue;
+
+            if (is_null($this->messengerClient)) {
+                $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
+                return;
+            }
+            $formData = $botResponse->actions[0]->parameters->data;
+            $queue = $this->conf->has('chat.chat.queue') ? $this->conf->get('chat.chat.queue') : 1;
+            $formData->QUEUE = $formData->QUEUE ?? $queue;
+            $history = $this->chatbotHistory();
+
+            $ticket = $this->messengerClient->createTicket($formData, $history, $this->conf->get('chat.chat.source'));
+            if ($ticket !== '') {
+                $this->externalClient->sendTextMessage($this->lang->translate('ticket_created') . $ticket);
+                return;
+            }
+            $this->externalClient->sendTextMessage($this->lang->translate('ticket_error'));
+            return;
+        }
     }
 }

@@ -3,7 +3,7 @@
     "require": {
         "symfony/http-foundation": "~3.4.36",
         "guzzlehttp/guzzle": "~6.3.3",
-        "php": "~7.4",
+        "php": "~7.1",
         "spatie/opening-hours": "^2.7"
     },
     "autoload": {

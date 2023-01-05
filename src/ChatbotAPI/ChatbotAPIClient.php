@@ -135,14 +135,18 @@ class ChatbotAPIClient extends APIClient
     public function getExtraInfo($data_id, $name = '')
     {
         // Get data from cache if it's empty or if the required value is not found
-        if (!is_object($this->appData) || !isset($this->appData->$data_id)) {
+        if (!is_object($this->appData) || !isset($this->appData->$data_id) || ($name !== '' && !isset($this->appData->$data_id->$name))) {
             $this->getExtraInfoFromCache($data_id, $name);
         }
         // Get data from API if cached-data is still empty or if the required value is still not found
-        if (!is_object($this->appData) || !isset($this->appData->$data_id)) {
+        if (!is_object($this->appData) || !isset($this->appData->$data_id) || ($name !== '' && !isset($this->appData->$data_id->$name))) {
             $this->getExtraInfoFromAPI($data_id, $name);
         }
-        return isset($this->appData->$data_id) ? $this->appData->$data_id : null;
+        if ($name !== '') {
+            return isset($this->appData->$data_id->$name) ? $this->appData->$data_id->$name : null;
+        } else {
+            return isset($this->appData->$data_id) ? $this->appData->$data_id : null;
+        }
     }
 
     /**
@@ -153,8 +157,12 @@ class ChatbotAPIClient extends APIClient
         $this->appData = new stdClass();
         $cachedAppData      = file_exists($this->appDataCacheFile) ? json_decode(file_get_contents($this->appDataCacheFile)) : null;
         $cachedDataSeconds  = file_exists($this->appDataCacheFile) ? time() - filemtime($this->appDataCacheFile) : null;
-        if (is_object($cachedAppData) && !empty($cachedAppData) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
-            $this->appData = $cachedAppData;
+        if (is_object($cachedAppData) && !empty($cachedAppData) && !empty($cachedAppData->$data_id) && $cachedDataSeconds < self::CACHED_EXTRA_INFO_TTL) {
+            if ($name !== '') {
+                $this->appData->$data_id->$name = $cachedAppData;
+            } else {
+                $this->appData->$data_id = isset($cachedAppData->$data_id) ? $cachedAppData->$data_id : $cachedAppData;
+            }
         }
     }
 
@@ -170,9 +178,17 @@ class ChatbotAPIClient extends APIClient
         if (isset($response->errors)) {
             throw new Exception($response->errors[0]->message, $response->errors[0]->code);
         }
-        $this->appData->$data_id = $response;
+        if ($name !== '') {
+            $this->appData->$data_id->$name = $response;
+        } else {
+            $this->appData->$data_id = $response;
+        }
         // Store data in cache
-        file_put_contents($this->appDataCacheFile, json_encode($this->appData));
+        $cachedAppData = file_exists($this->appDataCacheFile) ? json_decode(file_get_contents($this->appDataCacheFile)) : null;
+        $cachedAppData = (is_object($cachedAppData) && !empty($cachedAppData)) ? json_decode(json_encode($cachedAppData), true) : [];
+        $appData = array_merge($cachedAppData, json_decode(json_encode($this->appData), true));
+
+        file_put_contents($this->appDataCacheFile, json_encode($appData));
     }
 
     /**
@@ -314,5 +330,80 @@ class ChatbotAPIClient extends APIClient
         } else {
             return $response;
         }
+    }
+
+    /**
+     * Get survey url
+     */
+    public function getSurvey($surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $response = $this->call("/v1/surveys/" . $surveyId, "GET", $headers, []);
+        if (isset($response->errors)) {
+            return (object) ['error' => $response->errors[0]->message];
+        }
+        return $response;
+    }
+
+    /**
+     * Start the survey
+     */
+    public function surveyStart($surveyId)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/start", "GET", $headers, []);
+        if (isset($response->errors)) {
+            return (object) ['error' => $response->errors[0]->message];
+        }
+        return $response;
+    }
+
+    /**
+     * Sends the responses of the survey
+     */
+    public function surveySubmit($surveyId, $answers, $token)
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+        //Update sessionToken if needed
+        $this->updateSessionToken();
+        // Headers
+        $headers = array(
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken,
+            "x-inbenta-session: Bearer " . $this->sessionToken
+        );
+
+        $params = [
+            "fieldAnswers" => $answers,
+            "token" => $token
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/surveys/" . $surveyId . "/submit", "POST", $headers, $params);
+        if (isset($response->errors)) {
+            return $response->errors[0]->message;
+        }
+        return $response;
     }
 }

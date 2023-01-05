@@ -192,4 +192,203 @@ class MessengerAPIClient extends APIClient
         }
         return [];
     }
+
+    /**
+     * Insert a new Messenger User
+     * @param array $params
+     * @return object
+     */
+    protected function insertUser(array $params): object
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [http_build_query($params)];
+
+        return $this->call("/v1/users", "POST", $headers, $params);
+    }
+
+    /**
+     * Get the user ID, if email exists, otherwise insert a new user
+     * @param string $email
+     * @param string $fullName
+     * @return int
+     */
+    protected function getUserId(string $email, string $fullName): int
+    {
+        $userData = $this->getUserByParam("address", $email);
+
+        if (!isset($userData->data)) return 0;
+
+        if (count($userData->data) > 0) return $userData->data[0]->id;
+
+        $saveData = [
+            "name" => $fullName,
+            "address" => $email
+        ];
+        $userData = $this->insertUser($saveData);
+
+        if (!isset($userData->uuid)) return 0;
+        return $userData->uuid;
+    }
+
+    /**
+     * Creates a new Messenger file
+     * @param string $name
+     * @param string $content base64
+     * @return int (File UUID or 0 on error)
+     */
+    public function createMedia(string $name, string $content): int
+    {
+        if ($name === "" || $content === "") return "";
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "name" => $name,
+            "content" => $content
+        ];
+        $params = [http_build_query($params)];
+        $mediaInfo = $this->call("/v1/media", "POST", $headers, $params);
+
+        if (!isset($mediaInfo->uuid)) return 0;
+        return $mediaInfo->uuid;
+    }
+
+    /**
+     * Creates a new Messenger ticket
+     * @param object $formData
+     * @param array $history
+     * @param int $source
+     * @return string (Ticket UUID or empty on error)
+     */
+    public function createTicket(object $formData, array $history, int $source): string
+    {
+        $firstName = isset($formData->FIRST_NAME) ? $formData->FIRST_NAME : "";
+        $lastName = isset($formData->LAST_NAME) ? $formData->LAST_NAME : "";
+        $fullName = trim($firstName . " " . $lastName);
+        $inquiry = isset($formData->INQUIRY) ? $formData->INQUIRY : "";
+        $queue = isset($formData->QUEUE) ? $formData->QUEUE : 1;
+        $email = isset($formData->EMAIL_ADDRESS) ? $formData->EMAIL_ADDRESS : "";
+
+        if ($email === "") return "";
+
+        $idUser = $this->getUserId($email, $fullName);
+        if ($idUser === 0) return "";
+
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [
+            "title" => $inquiry,
+            "creator" => $idUser,
+            "message" => $inquiry,
+            "source" => $source,
+            "queue" => $queue,
+            "autoclassify" => true,
+            "history" => [
+                "messages" => $this->processConversationTranscript($history)
+            ]
+        ];
+        $params = [http_build_query($params)];
+        $ticketInfo = $this->call("/v1/tickets", "POST", $headers, $params);
+
+        if (!isset($ticketInfo->full_uuid)) return "";
+        return $ticketInfo->full_uuid;
+    }
+
+    /**
+     * Updates the Messenger Ticket
+     * @param int    $ticketId
+     * @param object $params
+     * @return string (Ticket updated successfully)
+    */
+    public function updateTicket(int $ticketId, object $params): string
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/tickets/" . $ticketId, "PUT", $headers, $params);
+        if (!isset($response->error)) {
+            return $response;
+        }
+        return $response->message;
+    }
+
+    /**
+     * Add reply to the Messenger Ticket
+     * @param int    $ticketId
+     * @param object $formData
+     * @return int (The id of the reply that was just added to the ticket)
+    */
+    public function addTicketReplies(int $ticketId, object $formData): int
+    {
+        // Update access token if needed
+        $this->updateAccessToken();
+
+        $firstName = isset($formData->FIRST_NAME) ? $formData->FIRST_NAME : "";
+        $lastName = isset($formData->LAST_NAME) ? $formData->LAST_NAME : "";
+        $fullName = trim($firstName . " " . $lastName);
+        $email = isset($formData->EMAIL_ADDRESS) ? $formData->EMAIL_ADDRESS : "";
+        $attachments = isset($formData->ATTACHMENTS) ? $formData->ATTACHMENTS : [];
+        $message = isset($formData->MESSAGE) ? $formData->MESSAGE : "";
+
+        if ($email === "") return "";
+
+        $idUser = $this->getUserId($email, $fullName);
+        if ($idUser === 0) return "";
+
+        // Headers
+        $headers = [
+            "x-inbenta-key: " . $this->key,
+            "Authorization: Bearer " . $this->accessToken
+        ];
+
+        $params = [
+            "creator" => $idUser,
+            "message" => $message,
+            "attachments" => $attachments
+        ];
+        $params = [http_build_query($params)];
+
+        $response = $this->call("/v1/tickets/" . $ticketId . "/replies", "POST", $headers, $params);
+        if (!isset($response->uuid)) return 0;
+        return $response->uuid;
+    }
+
+    /**
+     * Process the chat conversation history
+     * @param array $chatHistory
+     * @return array $conversation
+     */
+    protected function processConversationTranscript(array $chatHistory): array
+    {
+        $conversation = [];
+        foreach ($chatHistory as $element) {
+            $message = trim(strip_tags($element["message"], "<br><li><ul><ol><p><a></a><img><iframe>"));
+            if ($message === "") continue;
+
+            $dateTime = gmdate("Y-m-d H:i:s\Z", $element["created"]);
+            $message .= " (<small>" . $dateTime . "</small>)";
+            $conversation[] = [
+                "message" => $message,
+                "user" => $element["sender"]
+            ];
+        }
+        return $conversation;
+    }
 }
